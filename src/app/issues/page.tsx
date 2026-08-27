@@ -2,19 +2,28 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface IssueData {
   [key: string]: string;
 }
 
 export default function Issues() {
+  const router = useRouter();
   const [issues, setIssues] = useState<IssueData[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (!isLoggedIn) {
+      router.push('/');
+      return;
+    }
+    setIsAuthorized(true);
     fetchData();
-  }, []);
+  }, [router]);
 
   async function fetchData() {
     try {
@@ -26,6 +35,22 @@ export default function Issues() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl text-gray-600 mb-4">로그인이 필요합니다.</p>
+          <Link
+            href="/"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            홈으로 돌아가기
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

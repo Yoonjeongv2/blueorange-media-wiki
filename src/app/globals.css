@@ -12,11 +12,27 @@ html {
 
 body {
   font-family: var(--font-pretendard, system-ui, -apple-system, sans-serif);
-  background-color: #ffffff;
+  background: linear-gradient(135deg, #fce7f3 0%, #f3e8ff 25%, #dbeafe 75%, #fef3c7 100%);
+  background-attachment: fixed;
   color: #1a1a1a;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px),
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px);
+  pointer-events: none;
+  z-index: 0;
 }
 
 h1 {

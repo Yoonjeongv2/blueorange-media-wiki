@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BarChart3, FileText, HelpCircle, CalendarDays } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -56,43 +57,63 @@ export default function Home() {
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 공개 자료 */}
-            <div className="rounded-2xl backdrop-blur-sm bg-white bg-opacity-70 border border-white border-opacity-50 p-8 shadow-lg hover:shadow-xl transition-all">
+            <div className="rounded-2xl backdrop-blur-sm bg-white/70 border border-white/60 p-8 shadow-lg hover:shadow-xl transition-all">
               <h3 className="text-lg font-bold text-gray-900 mb-5 tracking-tight">공개 자료</h3>
               <div className="space-y-3">
                 <Link
                   href="/media-updates"
-                  className="block p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:border-purple-300 transition-all"
+                  className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:border-purple-300 transition-all"
                 >
-                  <h4 className="font-semibold text-gray-900 text-sm">📊 미디어 업데이트</h4>
-                  <p className="text-xs text-gray-600 mt-1.5">네이버, 카카오, Meta, Google, 토스의 최신 정보</p>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-600">
+                    <BarChart3 className="w-4.5 h-4.5" />
+                  </span>
+                  <span>
+                    <h4 className="font-semibold text-gray-900 text-sm">미디어 업데이트</h4>
+                    <p className="text-xs text-gray-600 mt-1">네이버, 카카오, Meta, Google, 토스의 최신 정보</p>
+                  </span>
                 </Link>
                 <Link
                   href="/products"
-                  className="block p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:border-purple-300 transition-all"
+                  className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:border-purple-300 transition-all"
                 >
-                  <h4 className="font-semibold text-gray-900 text-sm">📋 매체 상품소개서</h4>
-                  <p className="text-xs text-gray-600 mt-1.5">매체별 기본 상품 정보 및 타깃별 소개서</p>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-600">
+                    <FileText className="w-4.5 h-4.5" />
+                  </span>
+                  <span>
+                    <h4 className="font-semibold text-gray-900 text-sm">매체 상품소개서</h4>
+                    <p className="text-xs text-gray-600 mt-1">매체별 기본 상품 정보 및 타깃별 소개서</p>
+                  </span>
                 </Link>
               </div>
             </div>
 
             {/* 내부 자료 */}
-            <div className="rounded-2xl backdrop-blur-sm bg-white bg-opacity-70 border border-white border-opacity-50 p-8 shadow-lg hover:shadow-xl transition-all">
+            <div className="rounded-2xl backdrop-blur-sm bg-white/70 border border-white/60 p-8 shadow-lg hover:shadow-xl transition-all">
               <h3 className="text-lg font-bold text-gray-900 mb-5 tracking-tight">내부 자료</h3>
               <div className="space-y-3">
                 <Link
                   href="/issues"
-                  className="block p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 hover:border-blue-300 transition-all"
+                  className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 hover:border-blue-300 transition-all"
                 >
-                  <h4 className="font-semibold text-gray-900 text-sm">❓ 매체 이슈 가이드</h4>
-                  <p className="text-xs text-gray-600 mt-1.5">Q&A 사례 모음 및 해결방안</p>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 text-blue-600">
+                    <HelpCircle className="w-4.5 h-4.5" />
+                  </span>
+                  <span>
+                    <h4 className="font-semibold text-gray-900 text-sm">매체 이슈 가이드</h4>
+                    <p className="text-xs text-gray-600 mt-1">Q&A 사례 모음 및 해결방안</p>
+                  </span>
                 </Link>
                 <Link
                   href="/events"
-                  className="block p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 hover:border-blue-300 transition-all"
+                  className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 hover:border-blue-300 transition-all"
                 >
-                  <h4 className="font-semibold text-gray-900 text-sm">📅 웨비나/미팅 일정</h4>
-                  <p className="text-xs text-gray-600 mt-1.5">행사 일정 및 참석 관리</p>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 text-blue-600">
+                    <CalendarDays className="w-4.5 h-4.5" />
+                  </span>
+                  <span>
+                    <h4 className="font-semibold text-gray-900 text-sm">웨비나/미팅 일정</h4>
+                    <p className="text-xs text-gray-600 mt-1">행사 일정 및 참석 관리</p>
+                  </span>
                 </Link>
               </div>
             </div>

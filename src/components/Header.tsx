@@ -9,6 +9,7 @@ import {
   HelpCircle,
   CalendarDays,
   ChevronDown,
+  PlusCircle,
 } from 'lucide-react';
 
 interface SubItem {
@@ -58,6 +59,12 @@ const INTERNAL_GROUP: NavGroup = {
       label: '웨비나/미팅 일정',
       description: '행사 일정 및 참석 관리',
       icon: CalendarDays,
+    },
+    {
+      href: '/admin/media-updates',
+      label: '미디어 업데이트 등록',
+      description: 'URL·텍스트·이미지로 새 업데이트 등록',
+      icon: PlusCircle,
     },
   ],
 };

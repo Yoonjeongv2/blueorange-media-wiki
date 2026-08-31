@@ -1,25 +1,7 @@
 import { google } from 'googleapis';
+import { googleAuth } from './googleAuth';
 
-const credentials = {
-  type: 'service_account',
-  project_id: process.env.GOOGLE_PROJECT_ID,
-  private_key_id: 'blueorange',
-  private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  client_email: process.env.GOOGLE_CLIENT_EMAIL,
-  client_id: 'blueorange',
-  auth_uri: 'https://accounts.google.com/o/oauth2/auth',
-  token_uri: 'https://oauth2.googleapis.com/token',
-  auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
-  client_x509_cert_url: 'https://www.googleapis.com/robot/v1/metadata/x509/blueorange-service-account%40blueorange-media-wiki.iam.gserviceaccount.com',
-  universe_domain: 'googleapis.com',
-} as const;
-
-const auth = new google.auth.GoogleAuth({
-  credentials: credentials as any,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-});
-
-const sheets = google.sheets({ version: 'v4', auth });
+const sheets = google.sheets({ version: 'v4', auth: googleAuth });
 
 export async function getSheetData(sheetName: string) {
   try {
@@ -45,4 +27,46 @@ export async function getSheetData(sheetName: string) {
     console.error(`Error fetching sheet "${sheetName}":`, error);
     return [];
   }
+}
+
+export async function getSheetHeaders(sheetName: string): Promise<string[]> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: `${sheetName}!1:1`,
+  });
+  return response.data.values?.[0] || [];
+}
+
+/**
+ * 시트의 실제 헤더 순서에 맞춰 한 행을 추가합니다.
+ * fields는 헤더 이름(또는 동의어)을 키로 하는 값 맵입니다.
+ */
+export async function appendSheetRow(
+  sheetName: string,
+  fields: Record<string, string>,
+  headerAliases: Record<string, string[]>
+) {
+  const headers = await getSheetHeaders(sheetName);
+  if (!headers.length) {
+    throw new Error(`"${sheetName}" 시트에서 헤더를 찾을 수 없습니다.`);
+  }
+
+  const row = headers.map((header) => {
+    const canonicalKey = Object.keys(headerAliases).find((key) =>
+      [key, ...headerAliases[key]].includes(header)
+    );
+    return canonicalKey ? fields[canonicalKey] ?? '' : '';
+  });
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: sheetName,
+    valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: {
+      values: [row],
+    },
+  });
+
+  return row;
 }

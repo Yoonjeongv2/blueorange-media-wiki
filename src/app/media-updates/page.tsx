@@ -7,34 +7,71 @@ interface MediaData {
   [key: string]: string;
 }
 
-const MEDIA_PLATFORMS = ['네이버', '카카오', 'Meta', 'Google', '토스'];
+const MEDIA_PLATFORMS = ['네이버', '카카오', 'Meta', 'Google', '토스', '기타'];
+const SHEET_NAME = 'update의 사본';
+
+function normalizePlatform(raw: string): string {
+  const v = raw.toUpperCase();
+  if (v.includes('NAVER') || raw.includes('네이버')) return '네이버';
+  if (v.includes('KAKAO') || raw.includes('카카오')) return '카카오';
+  if (v.includes('META') || raw.includes('페이스북') || raw.includes('인스타')) return 'Meta';
+  if (v.includes('GOOGLE') || raw.includes('구글')) return 'Google';
+  if (v.includes('TOSS') || raw.includes('토스')) return '토스';
+  return '기타';
+}
+
+function parseFlexibleDate(raw: string): Date | null {
+  if (!raw?.trim()) return null;
+  const normalized = raw.trim().replace(/\./g, '-').replace(/-\s+/g, '-').replace(/\s+/g, '').replace(/-$/, '');
+  const parsed = new Date(normalized);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isApproved(item: MediaData): boolean {
+  return (item['게시 승인'] || '').trim() === '승인';
+}
+
+function isExternallyVisible(item: MediaData): boolean {
+  return (item['공개 범위'] || '').trim() !== '내부용';
+}
+
+function isWithinPublishWindow(item: MediaData): boolean {
+  const now = new Date();
+  const start = parseFlexibleDate(item['공개 시작일'] || '');
+  const end = parseFlexibleDate(item['공개 종료일'] || '');
+  if (start && now < start) return false;
+  if (end && now > end) return false;
+  return true;
+}
 
 export default function MediaUpdates() {
   const [data, setData] = useState<Record<string, MediaData[]>>({});
   const [loading, setLoading] = useState(true);
   const [selectedPlatform, setSelectedPlatform] = useState(MEDIA_PLATFORMS[0]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    setIsLoggedIn(localStorage.getItem('isLoggedIn') === 'true');
     fetchData();
   }, []);
 
   async function fetchData() {
     try {
-      const response = await fetch('/api/sheets?sheet=미디어%20업데이트');
+      const response = await fetch(`/api/sheets?sheet=${encodeURIComponent(SHEET_NAME)}`);
       const result = await response.json();
 
       const grouped: Record<string, MediaData[]> = {};
-      MEDIA_PLATFORMS.forEach(platform => {
+      MEDIA_PLATFORMS.forEach((platform) => {
         grouped[platform] = [];
       });
 
       if (Array.isArray(result)) {
-        result.forEach((item: MediaData) => {
-          const platform = item['매체'] || item['Platform'];
-          if (platform && grouped[platform]) {
+        result
+          .filter((item: MediaData) => isApproved(item) && isWithinPublishWindow(item))
+          .forEach((item: MediaData) => {
+            const platform = normalizePlatform(item['매체명'] || '');
             grouped[platform].push(item);
-          }
-        });
+          });
       }
 
       setData(grouped);
@@ -44,6 +81,10 @@ export default function MediaUpdates() {
       setLoading(false);
     }
   }
+
+  const visibleItems = (data[selectedPlatform] || []).filter(
+    (item) => isLoggedIn || isExternallyVisible(item)
+  );
 
   return (
     <div className="min-h-screen bg-white">
@@ -89,20 +130,35 @@ export default function MediaUpdates() {
           <div className="py-12 text-center text-gray-600">로드 중...</div>
         ) : (
           <div className="space-y-6">
-            {data[selectedPlatform]?.length > 0 ? (
-              data[selectedPlatform].map((item, idx) => (
+            {visibleItems.length > 0 ? (
+              visibleItems.map((item, idx) => (
                 <div
                   key={idx}
                   className="rounded-lg border border-gray-200 p-6 hover:shadow-sm transition-shadow"
                 >
-                  <h3 className="text-lg font-medium text-gray-900">
-                    {item['제목'] || item['Title'] || '제목 없음'}
-                  </h3>
+                  {item['대표 이미지 URL'] && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item['대표 이미지 URL']}
+                      alt=""
+                      className="mb-4 max-h-48 w-full rounded-lg object-cover"
+                    />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {item['외부용 제목'] || item['제목'] || '제목 없음'}
+                    </h3>
+                    {!isExternallyVisible(item) && (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        내부 전용
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-2 text-sm text-gray-600">
-                    {item['날짜'] || item['Date'] || '-'}
+                    {item['공지일'] || '-'}
                   </p>
                   <p className="mt-3 text-gray-700">
-                    {item['내용'] || item['Description'] || '내용 없음'}
+                    {item['외부용 요약'] || item['핵심 요약'] || '내용 없음'}
                   </p>
                 </div>
               ))

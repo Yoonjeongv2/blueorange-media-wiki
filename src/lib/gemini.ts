@@ -183,3 +183,41 @@ export async function draftFromInputs(inputs: DraftInputs): Promise<MediaUpdateD
   });
   return parseJsonResponse(response.text || '');
 }
+
+/**
+ * 관리자가 다른 필드를 수정한 뒤, 핵심 요약만 그 내용에 맞춰 AI로 다시 쓰도록 합니다.
+ */
+export async function resummarize(
+  draft: Pick<
+    MediaUpdateDraft,
+    'platform' | 'productType' | 'title' | 'updateType' | 'targetAudience' | 'keyChanges' | 'actionItems' | 'cautions'
+  >
+): Promise<string> {
+  const response = await client.models.generateContent({
+    model: MODEL,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: `아래는 광고 매체 업데이트 게시물의 현재 내용입니다. 이 내용을 바탕으로 "핵심 요약"만 3~5문장으로 새로 작성하세요.
+JSON 없이 요약 텍스트만 답하세요. 한국어로 작성하세요.
+
+[매체]: ${draft.platform}
+[상품 유형]: ${draft.productType}
+[제목]: ${draft.title}
+[업데이트 유형]: ${draft.updateType}
+[적용 대상]: ${draft.targetAudience}
+[주요 변경사항]: ${draft.keyChanges}
+[실무 체크사항]: ${draft.actionItems}
+[유의사항]: ${draft.cautions}`,
+          },
+        ],
+      },
+    ],
+    config: {
+      systemInstruction: '당신은 광고 매체 업데이트 소식을 사내 위키용으로 정리하는 어시스턴트입니다.',
+    },
+  });
+  return (response.text || '').trim();
+}

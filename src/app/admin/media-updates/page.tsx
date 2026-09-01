@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { Upload, Link2, Loader2, CheckCircle2 } from 'lucide-react';
+import { Upload, Link2, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const MEDIA_PLATFORMS = ['네이버', '카카오', 'Meta', 'Google', '토스', '기타'];
 type ImageMode = 'file' | 'url';
@@ -92,6 +92,7 @@ export default function AdminMediaUpdates() {
   const [saved, setSaved] = useState(false);
 
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [resummarizing, setResummarizing] = useState(false);
 
   const hasAnyInput = url.trim() || text.trim() || imageBase64 || (imageMode === 'url' && imageUrlInput.trim());
 
@@ -150,6 +151,29 @@ export default function AdminMediaUpdates() {
       setError(e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.');
     } finally {
       setExtracting(false);
+    }
+  }
+
+  async function handleResummarize() {
+    if (!draft) return;
+    setError('');
+    setResummarizing(true);
+    try {
+      const res = await fetch('/api/media-updates/resummarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
+        body: JSON.stringify({ draft }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) setUnlocked(false);
+        throw new Error(result.error || '요약을 다시 정리하는 중 오류가 발생했습니다.');
+      }
+      set('summary', result.summary);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.');
+    } finally {
+      setResummarizing(false);
     }
   }
 
@@ -375,7 +399,25 @@ export default function AdminMediaUpdates() {
             </Section>
 
             <Section title="내부 상세 내용">
-              <Field label="핵심 요약" value={draft.summary} onChange={(v) => set('summary', v)} rows={3} />
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-600">핵심 요약</label>
+                  <button
+                    onClick={handleResummarize}
+                    disabled={resummarizing}
+                    className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-40"
+                  >
+                    {resummarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    AI로 다시 쓰기
+                  </button>
+                </div>
+                <textarea
+                  value={draft.summary}
+                  onChange={(e) => set('summary', e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
               <Field label="적용 대상" value={draft.targetAudience} onChange={(v) => set('targetAudience', v)} rows={3} />
               <Field label="주요 변경사항" value={draft.keyChanges} onChange={(v) => set('keyChanges', v)} rows={3} />
               <Field label="실무 체크사항" value={draft.actionItems} onChange={(v) => set('actionItems', v)} rows={3} />

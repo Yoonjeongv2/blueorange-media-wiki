@@ -4,13 +4,30 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
+  Package,
+  CalendarDays,
+  Users,
+  Sparkles,
+  ClipboardCheck,
+  AlertTriangle,
+  Hash,
+} from 'lucide-react';
+import {
   MediaData,
   MEDIA_UPDATES_SHEET_NAME as SHEET_NAME,
   isExternallyVisible,
   isPubliclyReachable,
 } from '@/lib/mediaUpdates';
 
-function InfoRow({ label, value }: { label: string; value?: string }) {
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value?: string;
+}) {
   if (!value?.trim()) return null;
   return (
     <tr className="border-b border-gray-200 last:border-b-0">
@@ -18,7 +35,10 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
         scope="row"
         className="w-36 shrink-0 whitespace-nowrap bg-gray-50 px-4 py-3.5 text-left align-top text-sm font-medium text-gray-500 sm:w-44"
       >
-        {label}
+        <span className="inline-flex items-center gap-1.5">
+          <Icon className="h-4 w-4 shrink-0 text-gray-400" />
+          {label}
+        </span>
       </th>
       <td className="whitespace-pre-line px-4 py-3.5 text-[15px] leading-relaxed text-gray-800">{value}</td>
     </tr>
@@ -118,13 +138,13 @@ export default function MediaUpdateDetail() {
           <div className="overflow-hidden rounded-xl border border-gray-200">
             <table className="w-full">
               <tbody>
-                <InfoRow label="광고 상품 유형" value={item['광고 상품 유형']} />
-                <InfoRow label="일정" value={schedule} />
-                <InfoRow label="적용 대상" value={item['적용 대상']} />
-                <InfoRow label="주요 변경사항" value={item['주요 변경사항']} />
-                <InfoRow label="실무 체크사항" value={item['실무 체크사항']} />
-                <InfoRow label="유의사항" value={item['유의사항']} />
-                <InfoRow label="검색 키워드" value={item['검색 키워드']} />
+                <InfoRow icon={Package} label="광고 상품 유형" value={item['광고 상품 유형']} />
+                <InfoRow icon={CalendarDays} label="일정" value={schedule} />
+                <InfoRow icon={Users} label="적용 대상" value={item['적용 대상']} />
+                <InfoRow icon={Sparkles} label="주요 변경사항" value={item['주요 변경사항']} />
+                <InfoRow icon={ClipboardCheck} label="실무 체크사항" value={item['실무 체크사항']} />
+                <InfoRow icon={AlertTriangle} label="유의사항" value={item['유의사항']} />
+                <InfoRow icon={Hash} label="검색 키워드" value={item['검색 키워드']} />
               </tbody>
             </table>
           </div>

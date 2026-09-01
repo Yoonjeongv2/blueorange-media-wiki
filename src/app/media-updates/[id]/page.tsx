@@ -10,13 +10,18 @@ import {
   isPubliclyReachable,
 } from '@/lib/mediaUpdates';
 
-function DetailField({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value }: { label: string; value?: string }) {
   if (!value?.trim()) return null;
   return (
-    <div>
-      <h2 className="text-sm font-semibold text-gray-900">{label}</h2>
-      <p className="mt-1.5 whitespace-pre-line text-gray-700 leading-relaxed">{value}</p>
-    </div>
+    <tr className="border-b border-gray-200 last:border-b-0">
+      <th
+        scope="row"
+        className="w-36 shrink-0 whitespace-nowrap bg-gray-50 px-4 py-3.5 text-left align-top text-sm font-medium text-gray-500 sm:w-44"
+      >
+        {label}
+      </th>
+      <td className="whitespace-pre-line px-4 py-3.5 text-[15px] leading-relaxed text-gray-800">{value}</td>
+    </tr>
   );
 }
 
@@ -67,6 +72,8 @@ export default function MediaUpdateDetail() {
   }
 
   const showInternalDetails = isLoggedIn;
+  const title = (showInternalDetails && item['제목']) || item['외부용 제목'] || item['제목'] || '제목 없음';
+  const summary = (showInternalDetails ? item['핵심 요약'] : item['외부용 요약'] || item['핵심 요약']) || '';
 
   return (
     <div className="min-h-screen bg-white">
@@ -79,15 +86,8 @@ export default function MediaUpdateDetail() {
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-10 space-y-8">
-        {item['대표 이미지 URL'] && (
-          <div className="flex max-h-96 w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item['대표 이미지 URL']} alt="" className="max-h-96 w-full object-contain" />
-          </div>
-        )}
-
         <div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             {item['매체명'] && (
               <span className="rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white">{item['매체명']}</span>
             )}
@@ -101,28 +101,37 @@ export default function MediaUpdateDetail() {
               <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">내부 전용</span>
             )}
           </div>
-          <h1 className="mt-4 text-3xl font-light tracking-tight text-gray-900">
-            {(showInternalDetails && item['제목']) || item['외부용 제목'] || item['제목'] || '제목 없음'}
-          </h1>
-          <p className="mt-2 text-sm text-gray-500">
-            {[item['공지일'] && `공지일 ${item['공지일']}`, item['적용일'] && `적용일 ${item['적용일']}`]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">{title}</h1>
         </div>
 
-        <DetailField label="요약" value={showInternalDetails ? item['핵심 요약'] : item['외부용 요약'] || item['핵심 요약']} />
-
-        {showInternalDetails && (
-          <div className="space-y-6 rounded-xl border border-gray-200 p-6">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">내부 상세 (로그인 사용자에게만 표시)</p>
-            <DetailField label="적용 대상" value={item['적용 대상']} />
-            <DetailField label="주요 변경사항" value={item['주요 변경사항']} />
-            <DetailField label="실무 체크사항" value={item['실무 체크사항']} />
-            <DetailField label="유의사항" value={item['유의사항']} />
-            <DetailField label="검색 키워드" value={item['검색 키워드']} />
+        {item['대표 이미지 URL'] && (
+          <div className="flex max-h-[28rem] w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item['대표 이미지 URL']} alt="" className="max-h-[28rem] w-full object-contain" />
           </div>
         )}
+
+        <div>
+          <h2 className="mb-3 text-base font-semibold text-gray-900">상세 정보</h2>
+          <div className="overflow-hidden rounded-xl border border-gray-200">
+            <table className="w-full">
+              <tbody>
+                <InfoRow label="매체" value={item['매체명']} />
+                <InfoRow label="광고 상품 유형" value={item['광고 상품 유형']} />
+                <InfoRow label="업데이트 유형" value={item['업데이트 유형']} />
+                <InfoRow label="중요도" value={item['중요도']} />
+                <InfoRow label="공지일" value={item['공지일']} />
+                <InfoRow label="적용일" value={item['적용일']} />
+                <InfoRow label="요약" value={summary} />
+                <InfoRow label="적용 대상" value={item['적용 대상']} />
+                <InfoRow label="주요 변경사항" value={item['주요 변경사항']} />
+                <InfoRow label="실무 체크사항" value={item['실무 체크사항']} />
+                <InfoRow label="유의사항" value={item['유의사항']} />
+                <InfoRow label="검색 키워드" value={item['검색 키워드']} />
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {item['참고 URL'] && (
           <a

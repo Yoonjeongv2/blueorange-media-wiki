@@ -2,47 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-
-interface MediaData {
-  [key: string]: string;
-}
-
-const MEDIA_PLATFORMS = ['네이버', '카카오', 'Meta', 'Google', '토스', '기타'];
-const SHEET_NAME = 'update의 사본';
-
-function normalizePlatform(raw: string): string {
-  const v = raw.toUpperCase();
-  if (v.includes('NAVER') || raw.includes('네이버')) return '네이버';
-  if (v.includes('KAKAO') || raw.includes('카카오')) return '카카오';
-  if (v.includes('META') || raw.includes('페이스북') || raw.includes('인스타')) return 'Meta';
-  if (v.includes('GOOGLE') || raw.includes('구글')) return 'Google';
-  if (v.includes('TOSS') || raw.includes('토스')) return '토스';
-  return '기타';
-}
-
-function parseFlexibleDate(raw: string): Date | null {
-  if (!raw?.trim()) return null;
-  const normalized = raw.trim().replace(/\./g, '-').replace(/-\s+/g, '-').replace(/\s+/g, '').replace(/-$/, '');
-  const parsed = new Date(normalized);
-  return isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function isApproved(item: MediaData): boolean {
-  return (item['게시 승인'] || '').trim() === '승인';
-}
-
-function isExternallyVisible(item: MediaData): boolean {
-  return (item['공개 범위'] || '').trim() !== '내부용';
-}
-
-function isWithinPublishWindow(item: MediaData): boolean {
-  const now = new Date();
-  const start = parseFlexibleDate(item['공개 시작일'] || '');
-  const end = parseFlexibleDate(item['공개 종료일'] || '');
-  if (start && now < start) return false;
-  if (end && now > end) return false;
-  return true;
-}
+import {
+  MediaData,
+  MEDIA_PLATFORMS,
+  MEDIA_UPDATES_SHEET_NAME as SHEET_NAME,
+  normalizePlatform,
+  isExternallyVisible,
+  isPubliclyReachable,
+} from '@/lib/mediaUpdates';
 
 export default function MediaUpdates() {
   const [data, setData] = useState<Record<string, MediaData[]>>({});
@@ -67,7 +34,7 @@ export default function MediaUpdates() {
 
       if (Array.isArray(result)) {
         result
-          .filter((item: MediaData) => isApproved(item) && isWithinPublishWindow(item))
+          .filter((item: MediaData) => isPubliclyReachable(item))
           .forEach((item: MediaData) => {
             const platform = normalizePlatform(item['매체명'] || '');
             grouped[platform].push(item);
@@ -140,17 +107,20 @@ export default function MediaUpdates() {
           <div className="space-y-6">
             {visibleItems.length > 0 ? (
               visibleItems.map((item, idx) => (
-                <div
+                <Link
                   key={idx}
-                  className="rounded-lg border border-gray-200 p-6 hover:shadow-sm transition-shadow"
+                  href={`/media-updates/${encodeURIComponent(item['게시물 ID'] || String(idx))}`}
+                  className="block rounded-lg border border-gray-200 p-6 hover:shadow-sm hover:border-gray-300 transition-all"
                 >
                   {item['대표 이미지 URL'] && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item['대표 이미지 URL']}
-                      alt=""
-                      className="mb-4 max-h-48 w-full rounded-lg object-cover"
-                    />
+                    <div className="mb-4 flex max-h-48 w-full items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item['대표 이미지 URL']}
+                        alt=""
+                        className="max-h-48 w-full object-contain"
+                      />
+                    </div>
                   )}
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-medium text-gray-900">
@@ -168,7 +138,7 @@ export default function MediaUpdates() {
                   <p className="mt-3 text-gray-700">
                     {item['외부용 요약'] || item['핵심 요약'] || '내용 없음'}
                   </p>
-                </div>
+                </Link>
               ))
             ) : (
               <div className="py-12 text-center text-gray-600">

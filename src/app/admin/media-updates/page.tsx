@@ -2,16 +2,10 @@
 
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { Link2, FileText, Image as ImageIcon, Loader2, CheckCircle2 } from 'lucide-react';
+import { Upload, Link2, Loader2, CheckCircle2 } from 'lucide-react';
 
 const MEDIA_PLATFORMS = ['네이버', '카카오', 'Meta', 'Google', '토스', '기타'];
-type Mode = 'url' | 'text' | 'image';
-
-const MODE_TABS: { id: Mode; label: string; icon: typeof Link2 }[] = [
-  { id: 'url', label: '링크 URL', icon: Link2 },
-  { id: 'text', label: '텍스트', icon: FileText },
-  { id: 'image', label: '이미지', icon: ImageIcon },
-];
+type ImageMode = 'file' | 'url';
 
 interface Draft {
   platform: string;
@@ -29,10 +23,9 @@ interface Draft {
   keywords: string;
   externalTitle: string;
   externalSummary: string;
-  imagePrompt: string;
 }
 
-function TextField({
+function Field({
   label,
   value,
   onChange,
@@ -45,22 +38,31 @@ function TextField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-600 mb-1.5">{label}</label>
       {rows ? (
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={rows}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
       ) : (
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
       )}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gray-200 p-6 sm:p-7 space-y-5">
+      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+      {children}
     </div>
   );
 }
@@ -69,10 +71,12 @@ export default function AdminMediaUpdates() {
   const [secret, setSecret] = useState('');
   const [unlocked, setUnlocked] = useState(false);
 
-  const [mode, setMode] = useState<Mode>('url');
   const [platformHint, setPlatformHint] = useState(MEDIA_PLATFORMS[0]);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
+
+  const [imageMode, setImageMode] = useState<ImageMode>('file');
+  const [imageUrlInput, setImageUrlInput] = useState('');
   const [imageBase64, setImageBase64] = useState('');
   const [imageMediaType, setImageMediaType] = useState('');
   const [imagePreview, setImagePreview] = useState('');
@@ -89,8 +93,18 @@ export default function AdminMediaUpdates() {
 
   const [draft, setDraft] = useState<Draft | null>(null);
 
+  const hasAnyInput = url.trim() || text.trim() || imageBase64 || (imageMode === 'url' && imageUrlInput.trim());
+
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
+  }
+
+  function clearImage() {
+    setImageBase64('');
+    setImageMediaType('');
+    setImagePreview('');
+    setImageUrlInput('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -111,12 +125,14 @@ export default function AdminMediaUpdates() {
     setSaved(false);
     setExtracting(true);
     try {
-      const body: Record<string, string> = { mode, platform: platformHint };
-      if (mode === 'url') body.url = url.trim();
-      if (mode === 'text') body.text = text.trim();
-      if (mode === 'image') {
+      const body: Record<string, string> = { platform: platformHint };
+      if (url.trim()) body.url = url.trim();
+      if (text.trim()) body.text = text.trim();
+      if (imageMode === 'file' && imageBase64) {
         body.imageBase64 = imageBase64;
         body.imageMediaType = imageMediaType;
+      } else if (imageMode === 'url' && imageUrlInput.trim()) {
+        body.imageUrl = imageUrlInput.trim();
       }
 
       const res = await fetch('/api/media-updates/extract', {
@@ -147,12 +163,13 @@ export default function AdminMediaUpdates() {
         headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
         body: JSON.stringify({
           draft,
-          sourceUrl: mode === 'url' ? url.trim() : '',
+          sourceUrl: url.trim(),
           visibility,
           publishStart,
           publishEnd,
-          imageBase64: mode === 'image' ? imageBase64 : '',
-          imageMediaType: mode === 'image' ? imageMediaType : '',
+          imageBase64: imageMode === 'file' ? imageBase64 : '',
+          imageMediaType: imageMode === 'file' ? imageMediaType : '',
+          imageUrl: imageMode === 'url' ? imageUrlInput.trim() : '',
         }),
       });
       const result = await res.json();
@@ -164,11 +181,9 @@ export default function AdminMediaUpdates() {
       setDraft(null);
       setUrl('');
       setText('');
-      setImageBase64('');
-      setImagePreview('');
+      clearImage();
       setPublishStart('');
       setPublishEnd('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.');
     } finally {
@@ -193,12 +208,12 @@ export default function AdminMediaUpdates() {
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
             placeholder="관리자 암호"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
             autoFocus
           />
           <button
             type="submit"
-            className="mt-4 w-full rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 py-2 text-sm font-medium text-white hover:shadow-md transition-all"
+            className="mt-4 w-full rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-medium text-white hover:shadow-md transition-all"
           >
             입장
           </button>
@@ -209,29 +224,29 @@ export default function AdminMediaUpdates() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200 bg-white py-8">
-        <div className="mx-auto max-w-3xl px-6">
+      <header className="border-b border-gray-200 bg-white py-10">
+        <div className="mx-auto max-w-5xl px-6 sm:px-10">
           <Link href="/media-updates" className="mb-4 inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
             ← 미디어 업데이트로 이동
           </Link>
           <h1 className="text-3xl font-light tracking-tight text-gray-900">미디어 업데이트 등록</h1>
-          <p className="mt-2 text-gray-600">
-            링크 URL을 우선 사용하고, 공유 URL이 없는 경우 텍스트나 이미지로 내용을 정리하세요.
+          <p className="mt-3 text-base text-gray-600 leading-relaxed">
+            링크 URL, 텍스트, 이미지(파일 또는 이미지 URL)를 원하는 만큼 함께 입력하면 AI가 종합해서 정리합니다.
             저장 후에는 시트에서 <strong>게시 승인</strong>을 입력해야 실제로 공개됩니다.
           </p>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-6 py-10 space-y-8">
+      <main className="mx-auto max-w-5xl px-6 sm:px-10 py-12 space-y-10">
         {/* 매체 힌트 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">매체 (힌트 — AI가 정확한 매체명으로 정리합니다)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2.5">매체 (힌트 — AI가 정확한 매체명으로 정리합니다)</label>
           <div className="flex flex-wrap gap-2">
             {MEDIA_PLATFORMS.map((p) => (
               <button
                 key={p}
                 onClick={() => setPlatformHint(p)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   platformHint === p ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -241,75 +256,92 @@ export default function AdminMediaUpdates() {
           </div>
         </div>
 
-        {/* 입력 방식 탭 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">입력 방식</label>
-          <div className="flex gap-2 border-b border-gray-200">
-            {MODE_TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setMode(tab.id);
-                    setDraft(null);
-                    setError('');
-                  }}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors ${
-                    mode === tab.id
-                      ? 'border-b-2 border-gray-900 text-gray-900'
-                      : 'text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
+        {/* 입력 — URL/텍스트/이미지를 함께 */}
+        <div className="space-y-6">
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2.5">
+              <Link2 className="w-4 h-4" /> 참고 URL (선택)
+            </label>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://... 공유 URL을 붙여넣으세요"
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
 
-          <div className="mt-4">
-            {mode === 'url' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2.5">텍스트 (선택)</label>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={6}
+              placeholder="공지사항, 이메일 본문 등 텍스트를 붙여넣으세요"
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-3 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <label className="text-sm font-medium text-gray-700">이미지 (선택)</label>
+              <div className="flex rounded-lg bg-gray-100 p-1 text-sm">
+                <button
+                  onClick={() => {
+                    setImageMode('file');
+                    setImageUrlInput('');
+                  }}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
+                    imageMode === 'file' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" /> 파일 업로드
+                </button>
+                <button
+                  onClick={() => {
+                    setImageMode('url');
+                    setImageBase64('');
+                    setImageMediaType('');
+                    setImagePreview('');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
+                    imageMode === 'url' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  <Link2 className="w-3.5 h-3.5" /> 이미지 URL
+                </button>
+              </div>
+            </div>
+
+            {imageMode === 'file' ? (
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800"
+              />
+            ) : (
               <input
                 type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://... 공유 URL을 붙여넣으세요"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={imageUrlInput}
+                onChange={(e) => setImageUrlInput(e.target.value)}
+                placeholder="https://... 이미지 URL을 붙여넣으세요"
+                className="w-full rounded-lg border border-gray-300 px-3.5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             )}
-            {mode === 'text' && (
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={6}
-                placeholder="공지사항, 이메일 본문 등 텍스트를 붙여넣으세요"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            )}
-            {mode === 'image' && (
-              <div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} className="text-sm" />
-                <p className="mt-1.5 text-xs text-gray-500">
-                  첨부한 이미지는 자동으로 업로드되어 대표 이미지로 쓰입니다. 이미지가 없으면 저장 시 AI가 대표 이미지를 자동 생성합니다.
-                </p>
-                {imagePreview && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={imagePreview} alt="첨부 이미지 미리보기" className="mt-3 max-h-64 rounded-lg border border-gray-200" />
-                )}
-              </div>
+
+            {imagePreview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imagePreview} alt="첨부 이미지 미리보기" className="mt-3 max-h-64 rounded-lg border border-gray-200" />
             )}
           </div>
 
           <button
             onClick={handleExtract}
-            disabled={
-              extracting ||
-              (mode === 'url' && !url.trim()) ||
-              (mode === 'text' && !text.trim()) ||
-              (mode === 'image' && !imageBase64)
-            }
-            className="mt-4 flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            disabled={extracting || !hasAnyInput}
+            className="flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-3 text-base font-medium text-white hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {extracting && <Loader2 className="w-4 h-4 animate-spin" />}
             AI로 정리하기
@@ -317,12 +349,12 @@ export default function AdminMediaUpdates() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3.5 text-base text-red-700">{error}</div>
         )}
 
         {saved && (
-          <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-            <CheckCircle2 className="w-4 h-4" />
+          <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-4 py-3.5 text-base text-green-700">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
             시트에 저장되었습니다. &quot;게시 승인&quot;란에 승인을 입력하면 공개 페이지에 노출됩니다.
           </div>
         )}
@@ -330,43 +362,39 @@ export default function AdminMediaUpdates() {
         {/* 정리 결과 미리보기 & 수정 */}
         {draft && (
           <div className="space-y-6">
-            <div className="rounded-xl border border-gray-200 p-6 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-900">기본 정보</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <TextField label="매체명" value={draft.platform} onChange={(v) => set('platform', v)} />
-                <TextField label="광고 상품 유형" value={draft.productType} onChange={(v) => set('productType', v)} />
-                <TextField label="업데이트 유형" value={draft.updateType} onChange={(v) => set('updateType', v)} />
-                <TextField label="중요도" value={draft.importance} onChange={(v) => set('importance', v)} />
-                <TextField label="공지일" value={draft.noticeDate} onChange={(v) => set('noticeDate', v)} />
-                <TextField label="적용일" value={draft.effectiveDate} onChange={(v) => set('effectiveDate', v)} />
+            <Section title="기본 정보">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <Field label="매체명" value={draft.platform} onChange={(v) => set('platform', v)} />
+                <Field label="광고 상품 유형" value={draft.productType} onChange={(v) => set('productType', v)} />
+                <Field label="업데이트 유형" value={draft.updateType} onChange={(v) => set('updateType', v)} />
+                <Field label="중요도" value={draft.importance} onChange={(v) => set('importance', v)} />
+                <Field label="공지일" value={draft.noticeDate} onChange={(v) => set('noticeDate', v)} />
+                <Field label="적용일" value={draft.effectiveDate} onChange={(v) => set('effectiveDate', v)} />
               </div>
-              <TextField label="내부 참고용 제목" value={draft.title} onChange={(v) => set('title', v)} />
-            </div>
+              <Field label="내부 참고용 제목" value={draft.title} onChange={(v) => set('title', v)} />
+            </Section>
 
-            <div className="rounded-xl border border-gray-200 p-6 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-900">내부 상세 내용</h2>
-              <TextField label="핵심 요약" value={draft.summary} onChange={(v) => set('summary', v)} rows={3} />
-              <TextField label="적용 대상" value={draft.targetAudience} onChange={(v) => set('targetAudience', v)} rows={3} />
-              <TextField label="주요 변경사항" value={draft.keyChanges} onChange={(v) => set('keyChanges', v)} rows={3} />
-              <TextField label="실무 체크사항" value={draft.actionItems} onChange={(v) => set('actionItems', v)} rows={3} />
-              <TextField label="유의사항" value={draft.cautions} onChange={(v) => set('cautions', v)} rows={3} />
-              <TextField label="검색 키워드" value={draft.keywords} onChange={(v) => set('keywords', v)} />
-            </div>
+            <Section title="내부 상세 내용">
+              <Field label="핵심 요약" value={draft.summary} onChange={(v) => set('summary', v)} rows={3} />
+              <Field label="적용 대상" value={draft.targetAudience} onChange={(v) => set('targetAudience', v)} rows={3} />
+              <Field label="주요 변경사항" value={draft.keyChanges} onChange={(v) => set('keyChanges', v)} rows={3} />
+              <Field label="실무 체크사항" value={draft.actionItems} onChange={(v) => set('actionItems', v)} rows={3} />
+              <Field label="유의사항" value={draft.cautions} onChange={(v) => set('cautions', v)} rows={3} />
+              <Field label="검색 키워드" value={draft.keywords} onChange={(v) => set('keywords', v)} />
+            </Section>
 
-            <div className="rounded-xl border border-gray-200 p-6 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-900">외부 공개용 문구</h2>
-              <TextField label="외부용 제목" value={draft.externalTitle} onChange={(v) => set('externalTitle', v)} />
-              <TextField label="외부용 요약" value={draft.externalSummary} onChange={(v) => set('externalSummary', v)} rows={3} />
-            </div>
+            <Section title="외부 공개용 문구">
+              <Field label="외부용 제목" value={draft.externalTitle} onChange={(v) => set('externalTitle', v)} />
+              <Field label="외부용 요약" value={draft.externalSummary} onChange={(v) => set('externalSummary', v)} rows={3} />
+            </Section>
 
-            <div className="rounded-xl border border-gray-200 p-6 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-900">공개 설정</h2>
+            <Section title="공개 설정">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">공개 범위</label>
+                <label className="block text-sm font-medium text-gray-600 mb-2">공개 범위</label>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setVisibility('외부 공개')}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                       visibility === '외부 공개' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -374,7 +402,7 @@ export default function AdminMediaUpdates() {
                   </button>
                   <button
                     onClick={() => setVisibility('내부용')}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                       visibility === '내부용' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -382,32 +410,32 @@ export default function AdminMediaUpdates() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">공개 시작일 (선택)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1.5">공개 시작일 (선택)</label>
                   <input
                     type="date"
                     value={publishStart}
                     onChange={(e) => setPublishStart(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">공개 종료일 (선택)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1.5">공개 종료일 (선택)</label>
                   <input
                     type="date"
                     value={publishEnd}
                     onChange={(e) => setPublishEnd(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
-            </div>
+            </Section>
 
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:shadow-md disabled:opacity-40 transition-all"
+              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-3 text-base font-medium text-white hover:shadow-md disabled:opacity-40 transition-all"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               시트에 저장 (검토 대기)

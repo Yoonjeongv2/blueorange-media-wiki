@@ -91,12 +91,20 @@ export default function MediaUpdates() {
       {/* Header */}
       <header className="border-b border-gray-200 bg-white py-8">
         <div className="mx-auto max-w-4xl px-6">
-          <Link
-            href="/"
-            className="mb-4 inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
-          >
-            ← 돌아가기
-          </Link>
+          <div className="mb-4 flex items-center justify-between">
+            <Link
+              href="/"
+              className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+            >
+              ← 돌아가기
+            </Link>
+            <Link
+              href="/admin/media-updates"
+              className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3.5 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-200"
+            >
+              업데이트 등록 →
+            </Link>
+          </div>
           <h1 className="text-4xl font-light tracking-tight text-gray-900">
             미디어 업데이트
           </h1>

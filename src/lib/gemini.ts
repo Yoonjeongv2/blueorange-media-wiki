@@ -103,7 +103,76 @@ function extractMeta(html: string, ...names: string[]): string {
   return '';
 }
 
-async function ask(parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>) {
+async function fetchUrlAsText(url: string): Promise<{ title: string; description: string; body: string }> {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BlueorangeMediaWikiBot/1.0)' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    throw new Error(`페이지를 가져오지 못했습니다 (HTTP ${res.status}).`);
+  }
+  const html = await res.text();
+  const ogTitle = extractMeta(html, 'og:title', 'twitter:title');
+  const titleTag = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '';
+  const ogDescription = extractMeta(html, 'og:description', 'twitter:description', 'description');
+  const body = stripHtml(html).slice(0, 6000);
+  return { title: ogTitle || titleTag, description: ogDescription, body };
+}
+
+export async function fetchImageAsBase64(imageUrl: string): Promise<{ base64: string; mimeType: string }> {
+  const res = await fetch(imageUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BlueorangeMediaWikiBot/1.0)' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    throw new Error(`이미지를 가져오지 못했습니다 (HTTP ${res.status}).`);
+  }
+  const mimeType = res.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+  const buffer = await res.arrayBuffer();
+  return { base64: Buffer.from(buffer).toString('base64'), mimeType };
+}
+
+export interface DraftInputs {
+  platformHint: string;
+  url?: string;
+  text?: string;
+  image?: { base64: string; mimeType: string };
+}
+
+export async function draftFromInputs(inputs: DraftInputs): Promise<MediaUpdateDraft> {
+  const { platformHint, url, text, image } = inputs;
+  if (!url?.trim() && !text?.trim() && !image) {
+    throw new Error('URL, 텍스트, 이미지 중 하나 이상을 입력해주세요.');
+  }
+
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+  if (image) {
+    parts.push({ inlineData: { mimeType: image.mimeType, data: image.base64 } });
+  }
+
+  const sections = [`[매체 힌트]: ${platformHint || '(미지정)'}`];
+
+  if (url?.trim()) {
+    const page = await fetchUrlAsText(url.trim());
+    sections.push(
+      `[원문 URL]: ${url.trim()}`,
+      `[페이지 제목]: ${page.title}`,
+      `[메타 설명]: ${page.description}`,
+      `[본문 발췌]: ${page.body}`
+    );
+  }
+
+  if (text?.trim()) {
+    sections.push(`[입력 텍스트]:\n${text.trim()}`);
+  }
+
+  if (image) {
+    sections.push('[첨부 이미지]: 위 이미지(공지사항 캡처, 스크린샷 등)도 함께 참고하세요.');
+  }
+
+  sections.push('위 내용을 종합해 매체 업데이트 소식으로 정리해 JSON으로 답하세요.');
+  parts.push({ text: sections.join('\n\n') });
+
   const response = await client.models.generateContent({
     model: MODEL,
     contents: [{ role: 'user', parts }],
@@ -113,57 +182,4 @@ async function ask(parts: Array<{ text: string } | { inlineData: { mimeType: str
     },
   });
   return parseJsonResponse(response.text || '');
-}
-
-export async function draftFromUrl(url: string, platformHint: string): Promise<MediaUpdateDraft> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BlueorangeMediaWikiBot/1.0)' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) {
-    throw new Error(`페이지를 가져오지 못했습니다 (HTTP ${res.status}).`);
-  }
-  const html = await res.text();
-
-  const ogTitle = extractMeta(html, 'og:title', 'twitter:title');
-  const titleTag = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] || '';
-  const ogDescription = extractMeta(html, 'og:description', 'twitter:description', 'description');
-  const bodyText = stripHtml(html).slice(0, 6000);
-
-  return ask([
-    {
-      text: `[매체 힌트]: ${platformHint}
-[원문 URL]: ${url}
-[페이지 제목]: ${ogTitle || titleTag}
-[메타 설명]: ${ogDescription}
-[본문 발췌]: ${bodyText}
-
-위 내용을 매체 업데이트 소식으로 정리해 JSON으로 답하세요.`,
-    },
-  ]);
-}
-
-export async function draftFromText(text: string, platformHint: string): Promise<MediaUpdateDraft> {
-  return ask([
-    {
-      text: `[매체 힌트]: ${platformHint}
-[입력 텍스트]:
-${text}
-
-위 내용을 매체 업데이트 소식으로 정리해 JSON으로 답하세요.`,
-    },
-  ]);
-}
-
-export async function draftFromImage(
-  imageBase64: string,
-  mediaType: string,
-  platformHint: string
-): Promise<MediaUpdateDraft> {
-  return ask([
-    { inlineData: { mimeType: mediaType, data: imageBase64 } },
-    {
-      text: `[매체 힌트]: ${platformHint}\n위 이미지(공지사항 캡처, 스크린샷 등)의 내용을 매체 업데이트 소식으로 정리해 JSON으로 답하세요.`,
-    },
-  ]);
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { appendSheetRow } from '@/lib/googleSheets';
 import { uploadImageToBlob } from '@/lib/blobStorage';
+import { fetchImageAsBase64 } from '@/lib/gemini';
 import type { MediaUpdateDraft } from '@/lib/gemini';
 
 // 시트의 편집(사본) 탭 이름은 완성되면 바뀔 수 있어 환경변수로 뺐습니다.
@@ -50,24 +51,30 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const draft = body.draft as MediaUpdateDraft;
-    const { sourceUrl, visibility, publishStart, publishEnd, imageBase64, imageMediaType } = body;
+    const { sourceUrl, visibility, publishStart, publishEnd, imageBase64, imageMediaType, imageUrl } = body;
 
     if (!draft?.platform?.trim() || !draft?.title?.trim() || !draft?.summary?.trim()) {
       return NextResponse.json({ error: '매체명, 제목, 핵심 요약은 필수입니다.' }, { status: 400 });
     }
 
-    let imageUrl = '';
-    if (imageBase64 && imageMediaType) {
-      try {
-        imageUrl = await uploadImageToBlob(
-          imageBase64,
-          imageMediaType,
+    let uploadedImageUrl = '';
+    try {
+      let image: { base64: string; mimeType: string } | undefined;
+      if (imageBase64 && imageMediaType) {
+        image = { base64: imageBase64, mimeType: imageMediaType };
+      } else if (imageUrl?.trim()) {
+        image = await fetchImageAsBase64(imageUrl.trim());
+      }
+      if (image) {
+        uploadedImageUrl = await uploadImageToBlob(
+          image.base64,
+          image.mimeType,
           `${draft.title || 'media-update'}-${Date.now()}`
         );
-      } catch (imageError) {
-        // 이미지 업로드 실패는 게시물 저장 자체를 막지 않고, 이미지 URL만 비워둡니다.
-        console.error('Image upload error:', imageError);
       }
+    } catch (imageError) {
+      // 이미지 업로드 실패는 게시물 저장 자체를 막지 않고, 이미지 URL만 비워둡니다.
+      console.error('Image upload error:', imageError);
     }
 
     const row = await appendSheetRow(
@@ -90,7 +97,7 @@ export async function POST(request: NextRequest) {
         실무체크사항: draft.actionItems,
         유의사항: draft.cautions,
         검색키워드: draft.keywords,
-        대표이미지URL: imageUrl,
+        대표이미지URL: uploadedImageUrl,
         게시승인: '', // 검토자가 시트에서 직접 승인해야 공개됩니다.
         공개범위: visibility === '내부용' ? '내부용' : '외부 공개',
         외부용제목: draft.externalTitle,

@@ -73,7 +73,9 @@ export default function MediaUpdateDetail() {
 
   const showInternalDetails = isLoggedIn;
   const title = (showInternalDetails && item['제목']) || item['외부용 제목'] || item['제목'] || '제목 없음';
-  const summary = (showInternalDetails ? item['핵심 요약'] : item['외부용 요약'] || item['핵심 요약']) || '';
+  const schedule = [item['공지일'] && `공지 ${item['공지일']}`, item['적용일'] && `적용 ${item['적용일']}`]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="min-h-screen bg-white">
@@ -116,13 +118,8 @@ export default function MediaUpdateDetail() {
           <div className="overflow-hidden rounded-xl border border-gray-200">
             <table className="w-full">
               <tbody>
-                <InfoRow label="매체" value={item['매체명']} />
                 <InfoRow label="광고 상품 유형" value={item['광고 상품 유형']} />
-                <InfoRow label="업데이트 유형" value={item['업데이트 유형']} />
-                <InfoRow label="중요도" value={item['중요도']} />
-                <InfoRow label="공지일" value={item['공지일']} />
-                <InfoRow label="적용일" value={item['적용일']} />
-                <InfoRow label="요약" value={summary} />
+                <InfoRow label="일정" value={schedule} />
                 <InfoRow label="적용 대상" value={item['적용 대상']} />
                 <InfoRow label="주요 변경사항" value={item['주요 변경사항']} />
                 <InfoRow label="실무 체크사항" value={item['실무 체크사항']} />

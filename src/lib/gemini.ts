@@ -36,7 +36,9 @@ async function generateContentWithRetry(
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
         const isOverloaded = message.includes('UNAVAILABLE') || message.includes('"code":503');
-        if (!isOverloaded) throw error; // 과부하가 아닌 에러는 바로 실패 처리 (다른 모델 시도 안 함)
+        const isQuotaExhausted = message.includes('RESOURCE_EXHAUSTED') || message.includes('"code":429');
+        if (!isOverloaded && !isQuotaExhausted) throw error; // 다른 종류의 에러는 바로 실패 처리 (다른 모델 시도 안 함)
+        if (isQuotaExhausted) break; // 하루 쿼터 소진은 기다려도 소용없으니 바로 다음 모델로
         if (attempt < delaysPerModel.length) await sleep(delaysPerModel[attempt]);
       }
     }
@@ -58,8 +60,6 @@ export interface MediaUpdateDraft {
   actionItems: string;
   cautions: string;
   keywords: string;
-  externalTitle: string;
-  externalSummary: string;
 }
 
 const JSON_SHAPE = `{
@@ -75,9 +75,7 @@ const JSON_SHAPE = `{
   "keyChanges": "주요 변경사항을 '카테고리: 내용' 형식으로, 줄바꿈으로 구분해 정리. 카테고리는 고정된 목록이 아니라 이 공지 내용에 실제로 해당하는 것만 골라서 자유롭게 정하세요 (예시일 뿐이니 참고만: 노출 일정, 대상 지면, 대상 상품, 설정 방법, 타겟팅, 과금 방식, 보고서 확인 방법, 소재 형식 등). 공지에 없는 내용을 억지로 만들어 카테고리를 채우지 마세요.",
   "actionItems": "담당자가 실무에서 확인해야 할 체크사항을 줄바꿈으로 구분된 항목으로 정리",
   "cautions": "유의사항을 줄바꿈으로 구분된 항목으로 정리 (모르면 빈 문자열)",
-  "keywords": "쉼표로 구분된 검색 키워드 3~6개",
-  "externalTitle": "사내 위키 외부 공개용 간결한 제목 (30자 이내)",
-  "externalSummary": "외부 공개용 요약 2~3문장"
+  "keywords": "쉼표로 구분된 검색 키워드 3~6개"
 }`;
 
 function buildSystemPrompt(): string {
@@ -110,8 +108,6 @@ function parseJsonResponse(text: string): MediaUpdateDraft {
     actionItems: field('actionItems'),
     cautions: field('cautions'),
     keywords: field('keywords'),
-    externalTitle: field('externalTitle'),
-    externalSummary: field('externalSummary'),
   };
 }
 
@@ -226,6 +222,35 @@ export async function draftFromInputs(inputs: DraftInputs): Promise<MediaUpdateD
  * 사용자가 "핵심 요약"란에 직접 쓰거나 고친 텍스트를, 다른 필드를 참고 맥락으로 삼아
  * 자연스러운 3~5문장으로 다듬어줍니다. 사용자가 쓴 내용을 무시하고 새로 짓지 않습니다.
  */
+// 매체명 환각(예: "토스" 입력 -> "틱톡"/"톡플레이스"/"다음플레이스"로 둔갑)을 잡아내는 검증.
+// gemini-3.5/3.6-flash에서 실제로 재현된 문제라, 단순 블랙리스트가 아니라
+// "정답 매체명이 실제로 들어있는지"를 직접 확인하는 방식으로 검증합니다.
+const PLATFORM_SYNONYM_GROUPS = [
+  ['네이버', 'NAVER'],
+  ['카카오', 'KAKAO'],
+  ['Meta', '메타', '페이스북', '인스타', 'Instagram', 'Facebook'],
+  ['Google', '구글'],
+  ['토스', 'Toss'],
+  ['틱톡', 'TikTok'],
+  ['다음', 'Daum'],
+];
+
+function findSynonymGroup(platform: string) {
+  const upper = platform.toUpperCase();
+  return PLATFORM_SYNONYM_GROUPS.find((group) => group.some((name) => upper.includes(name.toUpperCase())));
+}
+
+function isPlatformNameConsistent(text: string, correctPlatform: string): boolean {
+  const group = findSynonymGroup(correctPlatform);
+  if (!group) return true; // 알려진 매체 목록에 없는 이름이면 검증을 생략합니다.
+  const mentionsCorrect = group.some((name) => text.includes(name));
+  if (!mentionsCorrect) return false; // 정답 매체명이 아예 안 보이면 실패로 간주
+  const mentionsOtherPlatform = PLATFORM_SYNONYM_GROUPS.some(
+    (otherGroup) => otherGroup !== group && otherGroup.some((name) => text.includes(name))
+  );
+  return !mentionsOtherPlatform;
+}
+
 export async function resummarize(
   draft: Pick<
     MediaUpdateDraft,
@@ -233,17 +258,12 @@ export async function resummarize(
   >
 ): Promise<string> {
   const currentSummary = draft.summary?.trim();
-  const response = await generateContentWithRetry({
-    model: MODEL,
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: currentSummary
-              ? `아래 "현재 핵심 요약"은 사용자가 직접 작성했거나 수정한 내용입니다. 이 내용을 그대로 다시 쓰지 말고,
+  const buildPrompt = (strict: boolean) => `${strict ? '[매우 중요] 반드시 "매체" 항목에 적힌 이름만 사용하세요. 다른 어떤 매체·브랜드명도 절대 언급하거나 대체하지 마세요.\n\n' : ''}${
+    currentSummary
+      ? `아래 "현재 핵심 요약"은 사용자가 직접 작성했거나 수정한 내용입니다. 이 내용을 그대로 다시 쓰지 말고,
 그 안에 담긴 내용과 의도를 최대한 살리면서 문장을 자연스럽게 다듬고 3~5문장 분량으로 정리하세요.
-사용자가 쓴 사실 관계나 표현은 함부로 바꾸거나 빼지 마세요. 다른 필드는 참고용 맥락일 뿐입니다.
+사용자가 쓴 사실 관계나 표현은 함부로 바꾸거나 빼지 마세요. 특히 매체명은 절대 다른 매체 이름으로 바꾸지 마세요.
+다른 필드는 참고용 맥락일 뿐입니다.
 JSON 없이 요약 텍스트만 답하세요. 한국어로 작성하세요.
 
 [현재 핵심 요약 (이 내용을 다듬으세요)]:
@@ -257,7 +277,8 @@ ${currentSummary}
 [참고 맥락 - 주요 변경사항]: ${draft.keyChanges}
 [참고 맥락 - 실무 체크사항]: ${draft.actionItems}
 [참고 맥락 - 유의사항]: ${draft.cautions}`
-              : `아래는 광고 매체 업데이트 게시물의 현재 내용입니다. 이 내용을 바탕으로 "핵심 요약"을 3~5문장으로 새로 작성하세요.
+      : `아래는 광고 매체 업데이트 게시물의 현재 내용입니다. 이 내용을 바탕으로 "핵심 요약"을 3~5문장으로 새로 작성하세요.
+매체명은 절대 다른 매체 이름으로 바꾸지 마세요.
 JSON 없이 요약 텍스트만 답하세요. 한국어로 작성하세요.
 
 [매체]: ${draft.platform}
@@ -267,14 +288,22 @@ JSON 없이 요약 텍스트만 답하세요. 한국어로 작성하세요.
 [적용 대상]: ${draft.targetAudience}
 [주요 변경사항]: ${draft.keyChanges}
 [실무 체크사항]: ${draft.actionItems}
-[유의사항]: ${draft.cautions}`,
-          },
-        ],
+[유의사항]: ${draft.cautions}`
+  }`;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await generateContentWithRetry({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: buildPrompt(attempt > 0) }] }],
+      config: {
+        systemInstruction: '당신은 광고 매체 업데이트 소식을 사내 위키용으로 정리하는 어시스턴트입니다.',
       },
-    ],
-    config: {
-      systemInstruction: '당신은 광고 매체 업데이트 소식을 사내 위키용으로 정리하는 어시스턴트입니다.',
-    },
-  });
-  return (response.text || '').trim();
+    });
+    const result = (response.text || '').trim();
+    if (isPlatformNameConsistent(result, draft.platform)) {
+      return result;
+    }
+    // 매체명이 잘못 나왔으면, 더 강한 경고를 붙여 다시 시도합니다.
+  }
+  throw new Error('AI가 매체명을 잘못 인식했습니다. 다시 시도해주세요.');
 }

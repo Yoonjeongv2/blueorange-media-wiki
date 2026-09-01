@@ -100,8 +100,9 @@ export async function POST(request: NextRequest) {
         대표이미지URL: uploadedImageUrl,
         게시승인: '', // 검토자가 시트에서 직접 승인해야 공개됩니다.
         공개범위: visibility === '내부용' ? '내부용' : '외부 공개',
-        외부용제목: draft.externalTitle,
-        외부용요약: draft.externalSummary,
+        // 외부용 제목/요약을 따로 관리하지 않기로 해서, 기존 시트 컬럼과의 호환을 위해 제목/핵심요약을 그대로 미러링합니다.
+        외부용제목: draft.title,
+        외부용요약: draft.summary,
         공개시작일: publishStart || '',
         공개종료일: publishEnd || '',
         최종확인일: '',

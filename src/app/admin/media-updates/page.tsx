@@ -21,8 +21,6 @@ interface Draft {
   actionItems: string;
   cautions: string;
   keywords: string;
-  externalTitle: string;
-  externalSummary: string;
 }
 
 function Field({
@@ -423,11 +421,6 @@ export default function AdminMediaUpdates() {
               <Field label="실무 체크사항" value={draft.actionItems} onChange={(v) => set('actionItems', v)} rows={3} />
               <Field label="유의사항" value={draft.cautions} onChange={(v) => set('cautions', v)} rows={3} />
               <Field label="검색 키워드" value={draft.keywords} onChange={(v) => set('keywords', v)} />
-            </Section>
-
-            <Section title="외부 공개용 문구">
-              <Field label="외부용 제목" value={draft.externalTitle} onChange={(v) => set('externalTitle', v)} />
-              <Field label="외부용 요약" value={draft.externalSummary} onChange={(v) => set('externalSummary', v)} rows={3} />
             </Section>
 
             <Section title="공개 설정">

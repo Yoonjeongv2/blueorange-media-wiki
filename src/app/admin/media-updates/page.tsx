@@ -75,7 +75,7 @@ export default function AdminMediaUpdates() {
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
 
-  const [imageMode, setImageMode] = useState<ImageMode>('file');
+  const [imageMode, setImageMode] = useState<ImageMode>('url');
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [imageBase64, setImageBase64] = useState('');
   const [imageMediaType, setImageMediaType] = useState('');
@@ -312,17 +312,6 @@ export default function AdminMediaUpdates() {
               <div className="flex rounded-lg bg-gray-100 p-1 text-sm">
                 <button
                   onClick={() => {
-                    setImageMode('file');
-                    setImageUrlInput('');
-                  }}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
-                    imageMode === 'file' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
-                  }`}
-                >
-                  <Upload className="w-3.5 h-3.5" /> 파일 업로드
-                </button>
-                <button
-                  onClick={() => {
                     setImageMode('url');
                     setImageBase64('');
                     setImageMediaType('');
@@ -334,6 +323,17 @@ export default function AdminMediaUpdates() {
                   }`}
                 >
                   <Link2 className="w-3.5 h-3.5" /> 이미지 URL
+                </button>
+                <button
+                  onClick={() => {
+                    setImageMode('file');
+                    setImageUrlInput('');
+                  }}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${
+                    imageMode === 'file' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" /> 파일 업로드
                 </button>
               </div>
             </div>

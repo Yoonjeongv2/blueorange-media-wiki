@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resummarize } from '@/lib/gemini';
+import { resummarize, friendlyGeminiError } from '@/lib/gemini';
 
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-admin-secret');
@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ summary });
   } catch (error) {
     console.error('Resummarize API error:', error);
-    const message = error instanceof Error ? error.message : '요약을 다시 정리하는 중 오류가 발생했습니다.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: friendlyGeminiError(error) }, { status: 500 });
   }
 }

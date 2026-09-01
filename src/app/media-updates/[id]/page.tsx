@@ -10,7 +10,6 @@ import {
   Sparkles,
   ClipboardCheck,
   AlertTriangle,
-  Hash,
 } from 'lucide-react';
 import {
   MediaData,
@@ -144,22 +143,36 @@ export default function MediaUpdateDetail() {
                 <InfoRow icon={Sparkles} label="주요 변경사항" value={item['주요 변경사항']} />
                 <InfoRow icon={ClipboardCheck} label="실무 체크사항" value={item['실무 체크사항']} />
                 <InfoRow icon={AlertTriangle} label="유의사항" value={item['유의사항']} />
-                <InfoRow icon={Hash} label="검색 키워드" value={item['검색 키워드']} />
               </tbody>
             </table>
           </div>
         </div>
 
-        {item['참고 URL'] && (
-          <a
-            href={item['참고 URL']}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center text-sm text-indigo-600 hover:underline"
-          >
-            원문 보기 →
-          </a>
-        )}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {item['참고 URL'] && (
+            <a
+              href={item['참고 URL']}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-sm text-indigo-600 hover:underline"
+            >
+              원문 보기 →
+            </a>
+          )}
+          {item['검색 키워드'] && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {item['검색 키워드']
+                .split(',')
+                .map((kw) => kw.trim())
+                .filter(Boolean)
+                .map((kw, i) => (
+                  <span key={i} className="text-xs text-gray-400">
+                    #{kw.replace(/\s+/g, '')}
+                  </span>
+                ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

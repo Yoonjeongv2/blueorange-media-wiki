@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { draftFromInputs, fetchImageAsBase64 } from '@/lib/gemini';
+import { draftFromInputs, fetchImageAsBase64, friendlyGeminiError } from '@/lib/gemini';
 
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-admin-secret');
@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error('Extract API error:', error);
-    const message = error instanceof Error ? error.message : '내용을 정리하는 중 오류가 발생했습니다.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: friendlyGeminiError(error) }, { status: 500 });
   }
 }

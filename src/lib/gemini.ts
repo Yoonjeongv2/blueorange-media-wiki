@@ -1,5 +1,37 @@
 import { GoogleGenAI } from '@google/genai';
 
+export function friendlyGeminiError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('UNAVAILABLE') || message.includes('"code":503')) {
+    return 'AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해주세요.';
+  }
+  if (message.includes('RESOURCE_EXHAUSTED') || message.includes('"code":429')) {
+    return 'AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.';
+  }
+  return message;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Gemini가 일시적으로 과부하(503 UNAVAILABLE)일 때 몇 초 뒤 자동 재시도합니다.
+async function generateContentWithRetry(
+  ...args: Parameters<GoogleGenAI['models']['generateContent']>
+): ReturnType<GoogleGenAI['models']['generateContent']> {
+  const delays = [2000, 5000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await client.models.generateContent(...args);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isOverloaded = message.includes('UNAVAILABLE') || message.includes('"code":503');
+      if (!isOverloaded || attempt >= delays.length) throw error;
+      await sleep(delays[attempt]);
+    }
+  }
+}
+
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 // 무료 티어로 계속 쓸 수 있도록 이미지 생성 모델이 아닌 텍스트/멀티모달 이해용 Flash 모델을 씁니다.
 // gemini-3.6-flash는 무료 티어 일일 한도가 20회로 매우 낮아(모델별로 별도 쿼터),
@@ -174,7 +206,7 @@ export async function draftFromInputs(inputs: DraftInputs): Promise<MediaUpdateD
   sections.push('위 내용을 종합해 매체 업데이트 소식으로 정리해 JSON으로 답하세요.');
   parts.push({ text: sections.join('\n\n') });
 
-  const response = await client.models.generateContent({
+  const response = await generateContentWithRetry({
     model: MODEL,
     contents: [{ role: 'user', parts }],
     config: {
@@ -196,7 +228,7 @@ export async function resummarize(
   >
 ): Promise<string> {
   const currentSummary = draft.summary?.trim();
-  const response = await client.models.generateContent({
+  const response = await generateContentWithRetry({
     model: MODEL,
     contents: [
       {

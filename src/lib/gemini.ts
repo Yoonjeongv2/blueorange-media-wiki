@@ -2,9 +2,10 @@ import { GoogleGenAI } from '@google/genai';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 // 무료 티어로 계속 쓸 수 있도록 이미지 생성 모델이 아닌 텍스트/멀티모달 이해용 Flash 모델을 씁니다.
-// 'gemini-flash-latest' 별칭은 테스트 중 503(과부하)이 잦아, 실제 동작이 확인된 버전을 고정해서 씁니다.
-// 추후 구버전이 되면 콘솔 안내에 따라 최신 Flash 모델명으로 교체하면 됩니다.
-const MODEL = 'gemini-3.6-flash';
+// gemini-3.6-flash는 무료 티어 일일 한도가 20회로 매우 낮아(모델별로 별도 쿼터),
+// 현재 안내상 최신 안정 버전인 gemini-3.7-flash로 교체함. 추후 더 최신 버전이 나오면
+// 콘솔 안내에 따라 모델명만 바꿔주면 됩니다.
+const MODEL = 'gemini-3.7-flash';
 
 export interface MediaUpdateDraft {
   platform: string;
@@ -185,14 +186,16 @@ export async function draftFromInputs(inputs: DraftInputs): Promise<MediaUpdateD
 }
 
 /**
- * 관리자가 다른 필드를 수정한 뒤, 핵심 요약만 그 내용에 맞춰 AI로 다시 쓰도록 합니다.
+ * 사용자가 "핵심 요약"란에 직접 쓰거나 고친 텍스트를, 다른 필드를 참고 맥락으로 삼아
+ * 자연스러운 3~5문장으로 다듬어줍니다. 사용자가 쓴 내용을 무시하고 새로 짓지 않습니다.
  */
 export async function resummarize(
   draft: Pick<
     MediaUpdateDraft,
-    'platform' | 'productType' | 'title' | 'updateType' | 'targetAudience' | 'keyChanges' | 'actionItems' | 'cautions'
+    'platform' | 'productType' | 'title' | 'updateType' | 'targetAudience' | 'keyChanges' | 'actionItems' | 'cautions' | 'summary'
   >
 ): Promise<string> {
+  const currentSummary = draft.summary?.trim();
   const response = await client.models.generateContent({
     model: MODEL,
     contents: [
@@ -200,7 +203,24 @@ export async function resummarize(
         role: 'user',
         parts: [
           {
-            text: `아래는 광고 매체 업데이트 게시물의 현재 내용입니다. 이 내용을 바탕으로 "핵심 요약"만 3~5문장으로 새로 작성하세요.
+            text: currentSummary
+              ? `아래 "현재 핵심 요약"은 사용자가 직접 작성했거나 수정한 내용입니다. 이 내용을 그대로 다시 쓰지 말고,
+그 안에 담긴 내용과 의도를 최대한 살리면서 문장을 자연스럽게 다듬고 3~5문장 분량으로 정리하세요.
+사용자가 쓴 사실 관계나 표현은 함부로 바꾸거나 빼지 마세요. 다른 필드는 참고용 맥락일 뿐입니다.
+JSON 없이 요약 텍스트만 답하세요. 한국어로 작성하세요.
+
+[현재 핵심 요약 (이 내용을 다듬으세요)]:
+${currentSummary}
+
+[참고 맥락 - 매체]: ${draft.platform}
+[참고 맥락 - 상품 유형]: ${draft.productType}
+[참고 맥락 - 제목]: ${draft.title}
+[참고 맥락 - 업데이트 유형]: ${draft.updateType}
+[참고 맥락 - 적용 대상]: ${draft.targetAudience}
+[참고 맥락 - 주요 변경사항]: ${draft.keyChanges}
+[참고 맥락 - 실무 체크사항]: ${draft.actionItems}
+[참고 맥락 - 유의사항]: ${draft.cautions}`
+              : `아래는 광고 매체 업데이트 게시물의 현재 내용입니다. 이 내용을 바탕으로 "핵심 요약"을 3~5문장으로 새로 작성하세요.
 JSON 없이 요약 텍스트만 답하세요. 한국어로 작성하세요.
 
 [매체]: ${draft.platform}

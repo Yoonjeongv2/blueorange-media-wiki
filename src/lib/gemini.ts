@@ -15,29 +15,34 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Gemini가 일시적으로 과부하(503 UNAVAILABLE)일 때 몇 초 뒤 자동 재시도합니다.
+const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// 첫 모델이 일시적으로 과부하(503 UNAVAILABLE)면 몇 초 뒤 재시도하고,
+// 그래도 계속 안 되면 다음 모델로 자동 전환합니다.
+// gemini-3.6-flash는 무료 티어 일일 한도가 20회로 매우 낮아(모델별 별도 쿼터) 마지막 순서로만 둡니다.
+const MODEL_FALLBACK_CHAIN = ['gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.6-flash'];
+const MODEL = MODEL_FALLBACK_CHAIN[0];
+
 async function generateContentWithRetry(
-  ...args: Parameters<GoogleGenAI['models']['generateContent']>
+  params: Parameters<GoogleGenAI['models']['generateContent']>[0]
 ): ReturnType<GoogleGenAI['models']['generateContent']> {
-  const delays = [2000, 5000];
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await client.models.generateContent(...args);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const isOverloaded = message.includes('UNAVAILABLE') || message.includes('"code":503');
-      if (!isOverloaded || attempt >= delays.length) throw error;
-      await sleep(delays[attempt]);
+  const delaysPerModel = [1500, 3000];
+  let lastError: unknown;
+  for (const model of MODEL_FALLBACK_CHAIN) {
+    for (let attempt = 0; attempt <= delaysPerModel.length; attempt++) {
+      try {
+        return await client.models.generateContent({ ...params, model });
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        const isOverloaded = message.includes('UNAVAILABLE') || message.includes('"code":503');
+        if (!isOverloaded) throw error; // 과부하가 아닌 에러는 바로 실패 처리 (다른 모델 시도 안 함)
+        if (attempt < delaysPerModel.length) await sleep(delaysPerModel[attempt]);
+      }
     }
   }
+  throw lastError;
 }
-
-const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-// 무료 티어로 계속 쓸 수 있도록 이미지 생성 모델이 아닌 텍스트/멀티모달 이해용 Flash 모델을 씁니다.
-// gemini-3.6-flash는 무료 티어 일일 한도가 20회로 매우 낮아(모델별로 별도 쿼터),
-// 현재 안내상 최신 안정 버전인 gemini-3.7-flash로 교체함. 추후 더 최신 버전이 나오면
-// 콘솔 안내에 따라 모델명만 바꿔주면 됩니다.
-const MODEL = 'gemini-3.7-flash';
 
 export interface MediaUpdateDraft {
   platform: string;

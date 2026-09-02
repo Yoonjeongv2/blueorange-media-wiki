@@ -7,8 +7,15 @@ import { Upload, Link2, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 const MEDIA_PLATFORMS = ['네이버', '카카오', 'Meta', 'Google', '토스', '기타'];
 type ImageMode = 'file' | 'url';
 
-// 매체명/중요도/업데이트유형/광고상품유형 드롭다운의 기본 옵션.
-// 사용자가 새 값을 입력하면 브라우저 localStorage에 추가 저장되어 다음부터 목록에 뜹니다.
+// 매체명/중요도/업데이트유형/광고상품유형 드롭다운 옵션은 "옵션" 시트(컬럼당 하나씩,
+// 위에서 아래로 나열)에서 관리합니다. 새 옵션을 추가하려면 시트에 값을 한 줄 더 적으면 됩니다.
+const OPTIONS_SHEET_NAME = '옵션';
+const OPTIONS_SHEET_COLUMNS: Record<string, string> = {
+  platform: '매체명',
+  productType: '광고상품유형',
+  updateType: '업데이트유형',
+  importance: '중요도',
+};
 const DEFAULT_DROPDOWN_OPTIONS: Record<string, string[]> = {
   platform: ['NAVER SA', 'KAKAO', 'KAKAO MOMENT', 'Meta Ads', 'Google Ads', '토스', 'TikTok'],
   importance: ['중요', '참고', '확인 필요'],
@@ -16,30 +23,53 @@ const DEFAULT_DROPDOWN_OPTIONS: Record<string, string[]> = {
   productType: ['파워링크', '플레이스광고', 'ADVoost Max', '쇼핑검색광고', '브랜드검색'],
 };
 
-function useOptionList(fieldKey: keyof typeof DEFAULT_DROPDOWN_OPTIONS) {
+function useSheetOptions() {
+  const [sheetOptions, setSheetOptions] = useState<Record<string, string[]> | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/sheets?sheet=${encodeURIComponent(OPTIONS_SHEET_NAME)}`)
+      .then((res) => res.json())
+      .then((rows: Record<string, string>[]) => {
+        if (!Array.isArray(rows)) return;
+        const byField: Record<string, string[]> = {};
+        Object.entries(OPTIONS_SHEET_COLUMNS).forEach(([fieldKey, column]) => {
+          const values = rows.map((row) => row[column]?.trim()).filter(Boolean) as string[];
+          byField[fieldKey] = Array.from(new Set(values));
+        });
+        setSheetOptions(byField);
+      })
+      .catch(() => {
+        // 시트 조회 실패 시 기본 옵션만 사용합니다.
+      });
+  }, []);
+
+  return sheetOptions;
+}
+
+function useOptionList(fieldKey: keyof typeof DEFAULT_DROPDOWN_OPTIONS, sheetOptions: Record<string, string[]> | null) {
   const storageKey = `mediaUpdateOptions:${fieldKey}`;
-  const [options, setOptions] = useState<string[]>(DEFAULT_DROPDOWN_OPTIONS[fieldKey]);
+  const [localExtras, setLocalExtras] = useState<string[]>([]);
 
   useEffect(() => {
     try {
       const stored: string[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      if (Array.isArray(stored) && stored.length) {
-        setOptions(Array.from(new Set([...DEFAULT_DROPDOWN_OPTIONS[fieldKey], ...stored])));
-      }
+      if (Array.isArray(stored)) setLocalExtras(stored);
     } catch {
-      // localStorage 파싱 실패는 무시하고 기본 옵션만 사용합니다.
+      // localStorage 파싱 실패는 무시합니다.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const base = sheetOptions?.[fieldKey]?.length ? sheetOptions[fieldKey] : DEFAULT_DROPDOWN_OPTIONS[fieldKey];
+  const options = Array.from(new Set([...base, ...localExtras]));
+
   function addOption(value: string) {
     const trimmed = value.trim();
     if (!trimmed || options.includes(trimmed)) return;
-    const next = [...options, trimmed];
-    setOptions(next);
+    const next = [...localExtras, trimmed];
+    setLocalExtras(next);
     try {
-      const custom = next.filter((o) => !DEFAULT_DROPDOWN_OPTIONS[fieldKey].includes(o));
-      localStorage.setItem(storageKey, JSON.stringify(custom));
+      localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {
       // 저장 실패해도 이번 세션 드롭다운에는 이미 반영되어 있으니 무시합니다.
     }
@@ -173,10 +203,11 @@ export default function AdminMediaUpdates() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [resummarizing, setResummarizing] = useState(false);
 
-  const platformOptions = useOptionList('platform');
-  const productTypeOptions = useOptionList('productType');
-  const updateTypeOptions = useOptionList('updateType');
-  const importanceOptions = useOptionList('importance');
+  const sheetOptions = useSheetOptions();
+  const platformOptions = useOptionList('platform', sheetOptions);
+  const productTypeOptions = useOptionList('productType', sheetOptions);
+  const updateTypeOptions = useOptionList('updateType', sheetOptions);
+  const importanceOptions = useOptionList('importance', sheetOptions);
 
   const hasAnyInput = url.trim() || text.trim() || imageBase64 || (imageMode === 'url' && imageUrlInput.trim());
 

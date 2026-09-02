@@ -71,7 +71,7 @@ const JSON_SHAPE = `{
   "noticeDate": "공지일 (YYYY-MM-DD, 모르면 오늘 날짜)",
   "effectiveDate": "적용일 (YYYY-MM-DD, 모르면 빈 문자열)",
   "summary": "핵심 내용을 3~5문장으로 요약",
-  "targetAudience": "적용 대상을 줄바꿈으로 구분된 항목으로 정리 (모르면 빈 문자열)",
+  "targetAudience": "이 공지가 적용되는 매체·광고 상품명만 짧게 작성 (예: 네이버 파워링크). 광고주 유형이나 업종, 설명 문장은 절대 쓰지 말고 상품명만 쉼표로 구분해서 나열하세요 (모르면 빈 문자열).",
   "keyChanges": "주요 변경사항을 '카테고리: 내용' 형식으로, 줄바꿈으로 구분해 정리. 카테고리는 고정된 목록이 아니라 이 공지 내용에 실제로 해당하는 것만 골라서 자유롭게 정하세요 (예시일 뿐이니 참고만: 노출 일정, 대상 지면, 대상 상품, 설정 방법, 타겟팅, 과금 방식, 보고서 확인 방법, 소재 형식 등). 공지에 없는 내용을 억지로 만들어 카테고리를 채우지 마세요.",
   "actionItems": "담당자가 실무에서 확인해야 할 체크사항을 줄바꿈으로 구분된 항목으로 정리",
   "cautions": "유의사항을 줄바꿈으로 구분된 항목으로 정리 (모르면 빈 문자열)",
@@ -87,12 +87,35 @@ ${JSON_SHAPE}
 모든 텍스트 값은 한국어로 작성하세요.`;
 }
 
-function parseJsonResponse(text: string): MediaUpdateDraft {
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) {
-    throw new Error('AI 응답에서 JSON을 찾을 수 없습니다.');
+// 첫 '{'부터 괄호 짝을 맞춰가며 실제 JSON 객체의 끝을 찾습니다.
+// 기존의 그리디 정규식(/\{[\s\S]*\}/)은 모델이 JSON 뒤에 여분의 텍스트를 덧붙이면
+// 마지막 '}'까지 통째로 잡아버려 파싱이 깨지는 사례가 실제로 있었습니다.
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
   }
-  const parsed = JSON.parse(match[0]);
+  return null;
+}
+
+function parseJsonResponse(text: string): MediaUpdateDraft {
+  const trimmed = text.trim();
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    const jsonSlice = extractFirstJsonObject(trimmed);
+    if (!jsonSlice) {
+      throw new Error('AI 응답에서 JSON을 찾을 수 없습니다.');
+    }
+    parsed = JSON.parse(jsonSlice);
+  }
   const field = (key: string) => String(parsed[key] ?? '').trim();
   return {
     platform: field('platform'),

@@ -1,11 +1,52 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, Link2, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const MEDIA_PLATFORMS = ['네이버', '카카오', 'Meta', 'Google', '토스', '기타'];
 type ImageMode = 'file' | 'url';
+
+// 매체명/중요도/업데이트유형/광고상품유형 드롭다운의 기본 옵션.
+// 사용자가 새 값을 입력하면 브라우저 localStorage에 추가 저장되어 다음부터 목록에 뜹니다.
+const DEFAULT_DROPDOWN_OPTIONS: Record<string, string[]> = {
+  platform: ['NAVER SA', 'KAKAO', 'KAKAO MOMENT', 'Meta Ads', 'Google Ads', '토스', 'TikTok'],
+  importance: ['중요', '참고', '확인 필요'],
+  updateType: ['신규 상품', '시스템 업데이트', '정책 변경', '기타'],
+  productType: ['파워링크', '플레이스광고', 'ADVoost Max', '쇼핑검색광고', '브랜드검색'],
+};
+
+function useOptionList(fieldKey: keyof typeof DEFAULT_DROPDOWN_OPTIONS) {
+  const storageKey = `mediaUpdateOptions:${fieldKey}`;
+  const [options, setOptions] = useState<string[]>(DEFAULT_DROPDOWN_OPTIONS[fieldKey]);
+
+  useEffect(() => {
+    try {
+      const stored: string[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      if (Array.isArray(stored) && stored.length) {
+        setOptions(Array.from(new Set([...DEFAULT_DROPDOWN_OPTIONS[fieldKey], ...stored])));
+      }
+    } catch {
+      // localStorage 파싱 실패는 무시하고 기본 옵션만 사용합니다.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function addOption(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed || options.includes(trimmed)) return;
+    const next = [...options, trimmed];
+    setOptions(next);
+    try {
+      const custom = next.filter((o) => !DEFAULT_DROPDOWN_OPTIONS[fieldKey].includes(o));
+      localStorage.setItem(storageKey, JSON.stringify(custom));
+    } catch {
+      // 저장 실패해도 이번 세션 드롭다운에는 이미 반영되어 있으니 무시합니다.
+    }
+  }
+
+  return { options, addOption };
+}
 
 interface Draft {
   platform: string;
@@ -56,6 +97,42 @@ function Field({
   );
 }
 
+function DatalistField({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  onAddOption,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  onAddOption: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-600 mb-1.5">{label}</label>
+      <input
+        type="text"
+        list={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onAddOption(e.target.value)}
+        placeholder="목록에서 고르거나 새 값을 입력하세요"
+        className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+      <datalist id={id}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-200 p-6 sm:p-7 space-y-5">
@@ -95,6 +172,11 @@ export default function AdminMediaUpdates() {
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [resummarizing, setResummarizing] = useState(false);
+
+  const platformOptions = useOptionList('platform');
+  const productTypeOptions = useOptionList('productType');
+  const updateTypeOptions = useOptionList('updateType');
+  const importanceOptions = useOptionList('importance');
 
   const hasAnyInput = url.trim() || text.trim() || imageBase64 || (imageMode === 'url' && imageUrlInput.trim());
 
@@ -405,10 +487,38 @@ export default function AdminMediaUpdates() {
           <div className="space-y-6">
             <Section title="기본 정보">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Field label="매체명" value={draft.platform} onChange={(v) => set('platform', v)} />
-                <Field label="광고 상품 유형" value={draft.productType} onChange={(v) => set('productType', v)} />
-                <Field label="업데이트 유형" value={draft.updateType} onChange={(v) => set('updateType', v)} />
-                <Field label="중요도" value={draft.importance} onChange={(v) => set('importance', v)} />
+                <DatalistField
+                  id="dl-platform"
+                  label="매체명"
+                  value={draft.platform}
+                  onChange={(v) => set('platform', v)}
+                  options={platformOptions.options}
+                  onAddOption={platformOptions.addOption}
+                />
+                <DatalistField
+                  id="dl-productType"
+                  label="광고 상품 유형"
+                  value={draft.productType}
+                  onChange={(v) => set('productType', v)}
+                  options={productTypeOptions.options}
+                  onAddOption={productTypeOptions.addOption}
+                />
+                <DatalistField
+                  id="dl-updateType"
+                  label="업데이트 유형"
+                  value={draft.updateType}
+                  onChange={(v) => set('updateType', v)}
+                  options={updateTypeOptions.options}
+                  onAddOption={updateTypeOptions.addOption}
+                />
+                <DatalistField
+                  id="dl-importance"
+                  label="중요도"
+                  value={draft.importance}
+                  onChange={(v) => set('importance', v)}
+                  options={importanceOptions.options}
+                  onAddOption={importanceOptions.addOption}
+                />
                 <Field label="공지일" value={draft.noticeDate} onChange={(v) => set('noticeDate', v)} />
                 <Field label="적용일" value={draft.effectiveDate} onChange={(v) => set('effectiveDate', v)} />
               </div>

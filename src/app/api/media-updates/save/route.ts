@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     let uploadedImageUrl = '';
+    let imageWarning = '';
     try {
       let image: { base64: string; mimeType: string } | undefined;
       if (imageBase64 && imageMediaType) {
@@ -73,8 +74,11 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (imageError) {
-      // 이미지 업로드 실패는 게시물 저장 자체를 막지 않고, 이미지 URL만 비워둡니다.
+      // 이미지 업로드 실패는 게시물 저장 자체를 막지 않고 이미지 URL만 비워두되,
+      // 조용히 넘어가지 않고 사용자에게 알립니다 (예전엔 여기서 그냥 무시해서
+      // 이미지를 넣었는데도 안 들어간 걸 아무도 모르는 문제가 있었습니다).
       console.error('Image upload error:', imageError);
+      imageWarning = '이미지 업로드에 실패해 대표 이미지 없이 저장되었습니다. 시트에서 대표 이미지 URL을 직접 채워주세요.';
     }
 
     const row = await appendSheetRow(
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
       HEADER_ALIASES
     );
 
-    return NextResponse.json({ success: true, row });
+    return NextResponse.json({ success: true, row, imageWarning: imageWarning || undefined });
   } catch (error) {
     console.error('Save API error:', error);
     const message = error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.';

@@ -19,7 +19,13 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await draftFromInputs({ platformHint: platform || '', url, text, image });
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      // 이미지를 URL에서 성공적으로 가져왔다면 그 base64를 그대로 돌려줘서,
+      // 저장 시 같은 URL을 다시 가져오다 실패하는 일이 없도록 재사용하게 합니다.
+      resolvedImageBase64: image?.base64 || '',
+      resolvedImageMediaType: image?.mimeType || '',
+    });
   } catch (error) {
     console.error('Extract API error:', error);
     return NextResponse.json({ error: friendlyGeminiError(error) }, { status: 500 });

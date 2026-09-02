@@ -78,6 +78,9 @@ export default function AdminMediaUpdates() {
   const [imageBase64, setImageBase64] = useState('');
   const [imageMediaType, setImageMediaType] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  // "AI로 정리하기"에서 이미지 URL을 이미 성공적으로 가져왔다면 그 결과를 캐시해뒀다가
+  // 저장 시 재사용합니다 (URL을 두 번 요청하면 두 번째가 실패하는 경우가 실제로 있었음).
+  const [resolvedImage, setResolvedImage] = useState<{ base64: string; mimeType: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [visibility, setVisibility] = useState<'외부 공개' | '내부용'>('외부 공개');
@@ -88,6 +91,7 @@ export default function AdminMediaUpdates() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [savedWarning, setSavedWarning] = useState('');
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [resummarizing, setResummarizing] = useState(false);
@@ -103,6 +107,7 @@ export default function AdminMediaUpdates() {
     setImageMediaType('');
     setImagePreview('');
     setImageUrlInput('');
+    setResolvedImage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -123,6 +128,7 @@ export default function AdminMediaUpdates() {
     setError('');
     setSaved(false);
     setExtracting(true);
+    setResolvedImage(null);
     try {
       const body: Record<string, string> = { platform: platformHint };
       if (url.trim()) body.url = url.trim();
@@ -143,6 +149,9 @@ export default function AdminMediaUpdates() {
       if (!res.ok) {
         if (res.status === 401) setUnlocked(false);
         throw new Error(result.error || '정리하는 중 오류가 발생했습니다.');
+      }
+      if (result.resolvedImageBase64) {
+        setResolvedImage({ base64: result.resolvedImageBase64, mimeType: result.resolvedImageMediaType });
       }
       setDraft(result);
     } catch (e) {
@@ -189,9 +198,9 @@ export default function AdminMediaUpdates() {
           visibility,
           publishStart,
           publishEnd,
-          imageBase64: imageMode === 'file' ? imageBase64 : '',
-          imageMediaType: imageMode === 'file' ? imageMediaType : '',
-          imageUrl: imageMode === 'url' ? imageUrlInput.trim() : '',
+          imageBase64: imageMode === 'file' ? imageBase64 : resolvedImage?.base64 || '',
+          imageMediaType: imageMode === 'file' ? imageMediaType : resolvedImage?.mimeType || '',
+          imageUrl: imageMode === 'url' && !resolvedImage ? imageUrlInput.trim() : '',
         }),
       });
       const result = await res.json();
@@ -200,6 +209,7 @@ export default function AdminMediaUpdates() {
         throw new Error(result.error || '저장 중 오류가 발생했습니다.');
       }
       setSaved(true);
+      setSavedWarning(result.imageWarning || '');
       setDraft(null);
       setUrl('');
       setText('');
@@ -348,7 +358,10 @@ export default function AdminMediaUpdates() {
               <input
                 type="url"
                 value={imageUrlInput}
-                onChange={(e) => setImageUrlInput(e.target.value)}
+                onChange={(e) => {
+                  setImageUrlInput(e.target.value);
+                  setResolvedImage(null); // URL이 바뀌면 이전에 캐시해둔 이미지는 더 이상 유효하지 않습니다.
+                }}
                 placeholder="https://... 이미지 URL을 붙여넣으세요"
                 className="w-full rounded-lg border border-gray-300 px-3.5 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
@@ -378,6 +391,12 @@ export default function AdminMediaUpdates() {
           <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-4 py-3.5 text-base text-green-700">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             시트에 저장되었습니다. &quot;게시 승인&quot;란에 승인을 입력하면 공개 페이지에 노출됩니다.
+          </div>
+        )}
+
+        {saved && savedWarning && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3.5 text-base text-amber-800">
+            ⚠️ {savedWarning}
           </div>
         )}
 

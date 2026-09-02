@@ -8,8 +8,9 @@ import {
   FileText,
   HelpCircle,
   CalendarDays,
-  ChevronDown,
   PlusCircle,
+  Newspaper,
+  MessageSquare,
 } from 'lucide-react';
 
 interface SubItem {
@@ -37,9 +38,21 @@ const PUBLIC_GROUP: NavGroup = {
     },
     {
       href: '/products',
-      label: '매체 상품소개서',
-      description: '매체별 기본 상품 및 타깃 소개서',
+      label: '광고 상품 소개 자료',
+      description: '매체별·상품군별 소개서',
       icon: FileText,
+    },
+    {
+      href: '/newsletter',
+      label: '미디어 뉴스레터',
+      description: '월별 큐레이션 아카이브',
+      icon: Newspaper,
+    },
+    {
+      href: '/contact',
+      label: '문의 / 요청',
+      description: '상품 문의, 자료 요청, 미팅 요청',
+      icon: MessageSquare,
     },
   ],
 };
@@ -103,114 +116,107 @@ export default function Header() {
   const groups = isLoggedIn ? [PUBLIC_GROUP, INTERNAL_GROUP] : [PUBLIC_GROUP];
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md bg-white/70 border-b border-gray-200/50">
+    <header className="sticky top-0 z-50 bg-warm border-b border-ink/10">
       <div className="mx-auto max-w-6xl px-6 py-4">
-        <div className="flex items-center justify-between" ref={containerRef}>
-          {/* Logo */}
-          <Link href="/" className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent tracking-tight">
-            Blueorange
+        <div className="flex items-center justify-between">
+          {/* Logo — clean logo only: 실제 회사 로고 원본(아이콘+워드마크) + Media Wiki 라벨 */}
+          <Link href="/" className="flex items-center gap-3 shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/blueorange-logo-horizontal.png"
+              alt="Blueorange Communications"
+              className="h-[30px] w-auto shrink-0"
+            />
+            <span className="flex items-baseline gap-1 border-l border-ink/15 pl-3">
+              <span
+                className="italic text-ink text-[17px] leading-none"
+                style={{ fontFamily: "Georgia, 'Times New Roman', ui-serif, serif" }}
+              >
+                media
+              </span>
+              <span
+                className="text-ink text-[17px] leading-none"
+                style={{ fontFamily: "'Arial Black', 'Pretendard', sans-serif", fontWeight: 800 }}
+              >
+                wiki
+              </span>
+            </span>
           </Link>
 
-          {/* Navigation */}
-          <nav className="flex gap-1 items-center">
-            {groups.map((group) => (
-              <div key={group.id} className="relative">
-                <button
-                  onClick={() => setOpenMenu(openMenu === group.id ? null : group.id)}
-                  className={`flex items-center gap-1.5 text-sm font-medium py-2 px-3 rounded-lg transition-colors ${
-                    openMenu === group.id ? 'text-gray-900 bg-gray-100' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  {group.label}
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${openMenu === group.id ? 'rotate-180' : ''}`}
-                  />
-                </button>
-
-                <AnimatePresence>
-                  {openMenu === group.id && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                      transition={{ duration: 0.16, ease: 'easeOut' }}
-                      className="absolute left-0 top-full mt-2 w-72 rounded-2xl border border-gray-200/60 bg-white/95 backdrop-blur-xl shadow-xl shadow-gray-900/10 p-2 origin-top-left"
-                    >
-                      {group.items.map((item) => {
-                        const Icon = item.icon;
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setOpenMenu(null)}
-                            className="flex items-start gap-3 rounded-xl px-3 py-3 hover:bg-gray-50 transition-colors"
-                          >
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-600">
-                              <Icon className="w-4.5 h-4.5" />
-                            </span>
-                            <span>
-                              <span className="block text-sm font-semibold text-gray-900">{item.label}</span>
-                              <span className="block text-xs text-gray-500 mt-0.5">{item.description}</span>
-                            </span>
-                          </Link>
-                        );
-                      })}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+          {/* Navigation — 플랫 인라인 메뉴, 버튼처럼 보이도록 hover 배경/밑줄 부여 */}
+          <nav className="hidden md:flex items-center">
+            <Link
+              href="/"
+              className="rounded-md px-2.5 py-2 text-sm font-semibold text-accent hover:bg-accent-soft transition-colors whitespace-nowrap"
+            >
+              HOME
+            </Link>
+            {groups.flatMap((group) => group.items).map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-md px-2.5 py-2 text-sm font-medium text-ink-soft hover:text-ink hover:bg-warm-soft transition-colors whitespace-nowrap"
+              >
+                {item.label}
+              </Link>
             ))}
           </nav>
 
-          {/* 로그인 버튼 */}
-          <div className="relative">
-            <button
-              onClick={() => setOpenMenu(openMenu === 'login' ? null : 'login')}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-sm font-medium hover:shadow-md transition-all"
-            >
-              {isLoggedIn ? '마이페이지' : '로그인'}
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${openMenu === 'login' ? 'rotate-180' : ''}`}
-              />
-            </button>
+          {/* 우측: 로그인(텍스트) + 뉴스레터 구독(블랙 필 버튼) */}
+          <div className="flex items-center gap-5">
+            <div className="relative" ref={containerRef}>
+              <button
+                onClick={() => setOpenMenu(openMenu === 'login' ? null : 'login')}
+                className="text-sm font-medium text-ink-soft hover:text-ink transition-colors"
+              >
+                {isLoggedIn ? '마이페이지' : '로그인'}
+              </button>
 
-            <AnimatePresence>
-              {openMenu === 'login' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  transition={{ duration: 0.16, ease: 'easeOut' }}
-                  className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-gray-200/60 bg-white/95 backdrop-blur-xl shadow-xl shadow-gray-900/10 p-2 origin-top-right"
-                >
-                  {!isLoggedIn ? (
-                    <>
-                      <button
-                        onClick={handleLogin}
-                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                      >
-                        로그인
-                      </button>
-                      <button className="w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
-                        회원가입
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button className="w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
-                        마이페이지
-                      </button>
-                      <button
-                        onClick={handleLogout}
-                        className="w-full text-left px-3 py-2.5 text-sm text-gray-700 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        로그아웃
-                      </button>
-                    </>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {openMenu === 'login' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    className="absolute right-0 top-full mt-3 w-48 rounded-2xl border border-ink/10 bg-warm/98 backdrop-blur-xl shadow-xl shadow-ink/10 p-2 origin-top-right"
+                  >
+                    {!isLoggedIn ? (
+                      <>
+                        <button
+                          onClick={handleLogin}
+                          className="w-full text-left px-3 py-2.5 text-sm text-ink hover:bg-warm-soft rounded-lg transition-colors"
+                        >
+                          로그인
+                        </button>
+                        <button className="w-full text-left px-3 py-2.5 text-sm text-ink hover:bg-warm-soft rounded-lg transition-colors">
+                          회원가입
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="w-full text-left px-3 py-2.5 text-sm text-ink hover:bg-warm-soft rounded-lg transition-colors">
+                          마이페이지
+                        </button>
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-3 py-2.5 text-sm text-ink hover:bg-accent-soft rounded-lg transition-colors"
+                        >
+                          로그아웃
+                        </button>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <Link
+              href="/newsletter"
+              className="px-4 py-2 border border-ink text-ink rounded-sm text-sm font-semibold hover:bg-ink hover:text-warm transition-colors whitespace-nowrap"
+            >
+              뉴스레터 구독
+            </Link>
           </div>
         </div>
       </div>

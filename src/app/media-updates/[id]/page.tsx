@@ -33,7 +33,7 @@ function InfoRow({
   const lines = list
     ? value
         .split('\n')
-        .map((line) => line.trim())
+        .map((line) => line.trim().replace(/^[-•*·‐]+\s*/, ''))
         .filter(Boolean)
     : [];
   return (

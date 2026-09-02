@@ -22,12 +22,20 @@ function InfoRow({
   icon: Icon,
   label,
   value,
+  list = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value?: string;
+  list?: boolean;
 }) {
   if (!value?.trim()) return null;
+  const lines = list
+    ? value
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
   return (
     <tr className="border-b border-gray-200 last:border-b-0">
       <th
@@ -39,7 +47,20 @@ function InfoRow({
           {label}
         </span>
       </th>
-      <td className="whitespace-pre-line px-4 py-3.5 text-[15px] leading-relaxed text-gray-800">{value}</td>
+      <td className="px-4 py-3.5 text-[15px] leading-relaxed text-gray-800">
+        {list ? (
+          <ul className="space-y-1">
+            {lines.map((line, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gray-400">-</span>
+                <span className="whitespace-pre-line">{line}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="whitespace-pre-line">{value}</span>
+        )}
+      </td>
     </tr>
   );
 }
@@ -92,9 +113,6 @@ export default function MediaUpdateDetail() {
 
   const showInternalDetails = isLoggedIn;
   const title = (showInternalDetails && item['제목']) || item['외부용 제목'] || item['제목'] || '제목 없음';
-  const schedule = [item['공지일'] && `공지 ${item['공지일']}`, item['적용일'] && `적용 ${item['적용일']}`]
-    .filter(Boolean)
-    .join(' · ');
 
   return (
     <div className="min-h-screen bg-white">
@@ -122,6 +140,7 @@ export default function MediaUpdateDetail() {
               <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">내부 전용</span>
             )}
           </div>
+          {item['공지일'] && <p className="mb-1.5 text-sm text-gray-500">{item['공지일']} 공지</p>}
           <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">{title}</h1>
         </div>
 
@@ -138,11 +157,11 @@ export default function MediaUpdateDetail() {
             <table className="w-full">
               <tbody>
                 <InfoRow icon={Package} label="광고 상품 유형" value={item['광고 상품 유형']} />
-                <InfoRow icon={CalendarDays} label="일정" value={schedule} />
+                <InfoRow icon={CalendarDays} label="적용일" value={item['적용일']} />
                 <InfoRow icon={Users} label="적용 대상" value={item['적용 대상']} />
-                <InfoRow icon={Sparkles} label="주요 변경사항" value={item['주요 변경사항']} />
-                <InfoRow icon={ClipboardCheck} label="실무 체크사항" value={item['실무 체크사항']} />
-                <InfoRow icon={AlertTriangle} label="유의사항" value={item['유의사항']} />
+                <InfoRow icon={Sparkles} label="주요 변경사항" value={item['주요 변경사항']} list />
+                <InfoRow icon={ClipboardCheck} label="실무 체크사항" value={item['실무 체크사항']} list />
+                <InfoRow icon={AlertTriangle} label="유의사항" value={item['유의사항']} list />
               </tbody>
             </table>
           </div>
